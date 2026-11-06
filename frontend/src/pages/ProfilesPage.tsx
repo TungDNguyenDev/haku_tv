@@ -6,18 +6,21 @@ import ProfileEditor from '../components/ProfileEditor'
 import type { Profile } from '../features/auth/authApi'
 import { logoutRequested } from '../features/auth/authSlice'
 import { MAX_PROFILES } from '../features/profiles/profilesApi'
-import { profileSelectRequested, profilesRequested } from '../features/profiles/profilesSlice'
+import { PinPrompt } from '../components/PinDialog'
+import { pinPromptClosed, pinPromptOpened, profileSelectRequested, profilesRequested } from '../features/profiles/profilesSlice'
 
 // "Ai đang xem?": pick a profile, or switch to manage mode to add / edit / delete them.
 export default function ProfilesPage() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const location = useLocation()
-  const { items, status, error, selectingId } = useAppSelector((s) => s.profiles)
+  const { items, status, error, selectingId, pinPrompt } = useAppSelector((s) => s.profiles)
   const current = useAppSelector((s) => s.auth.profile)
   const [manage, setManage] = useState(new URLSearchParams(location.search).has('manage'))
   const [editing, setEditing] = useState<Profile | 'new' | null>(null)
-  const [chosenId, setChosenId] = useState<number | null>(null)
+  // /profiles?unlock=<id> (the header's profile switcher for a locked profile): that profile is the one being chosen.
+  const unlockId = Number(new URLSearchParams(location.search).get('unlock')) || null
+  const [chosenId, setChosenId] = useState<number | null>(unlockId)
 
   useEffect(() => {
     dispatch(profilesRequested())
@@ -31,16 +34,24 @@ export default function ProfilesPage() {
     }
   }, [chosenId, selectingId, current, location.state, navigate])
 
+  // ...and its PIN is asked straight away.
+  useEffect(() => {
+    if (unlockId !== null) dispatch(pinPromptOpened({ profileId: unlockId, error: null }))
+  }, [unlockId, dispatch])
+
   const choose = (profile: Profile) => {
     if (manage) {
       setEditing(profile)
       return
     }
     setChosenId(profile.profileId)
-    dispatch(profileSelectRequested(profile.profileId))
+    // A locked profile answers "pin-required" and the saga opens the PIN prompt.
+    dispatch(profileSelectRequested({ profileId: profile.profileId }))
   }
 
   const closeEditor = useCallback(() => setEditing(null), [])
+  const closePin = useCallback(() => dispatch(pinPromptClosed()), [dispatch])
+  const pinProfile = pinPrompt ? items.find((p) => p.profileId === pinPrompt.profileId) : undefined
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -76,6 +87,11 @@ export default function ProfilesPage() {
                   {manage && (
                     <span className="absolute inset-0 grid place-items-center rounded-md bg-black/55">
                       <PencilIcon />
+                    </span>
+                  )}
+                  {!manage && p.hasPin && (
+                    <span className="absolute right-1.5 bottom-1.5 grid size-7 place-items-center rounded-full bg-black/70" title="Hồ sơ đã khóa">
+                      <LockIcon />
                     </span>
                   )}
                   {selectingId === p.profileId && (
@@ -116,7 +132,29 @@ export default function ProfilesPage() {
       {editing && (
         <ProfileEditor profile={editing === 'new' ? null : editing} canDelete={items.length > 1} onClose={closeEditor} />
       )}
+
+      {pinPrompt && pinProfile && (
+        <PinPrompt
+          profileName={pinProfile.name}
+          error={pinPrompt.error}
+          busy={selectingId === pinPrompt.profileId}
+          onSubmit={(pin) => {
+            setChosenId(pinPrompt.profileId)
+            dispatch(profileSelectRequested({ profileId: pinPrompt.profileId, pin }))
+          }}
+          onClose={closePin}
+        />
+      )}
     </div>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="white" strokeWidth="2" aria-hidden="true">
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
   )
 }
 

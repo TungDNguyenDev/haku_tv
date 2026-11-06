@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
-import type { AvatarKey, Profile } from '../features/auth/authApi'
+import type { AvatarKey, MaturityLimit, Profile } from '../features/auth/authApi'
 import { AVATAR_KEYS } from '../features/profiles/avatars'
+import { ADULT_MATURITY_OPTIONS, KIDS_MATURITY_OPTIONS } from '../features/profiles/maturity'
 import {
   profileCreateRequested,
   profileDeleteRequested,
@@ -24,6 +25,8 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
   const [isKids, setIsKids] = useState(profile?.isKids ?? false)
   const [avatarKey, setAvatarKey] = useState<AvatarKey>(profile?.avatarKey ?? 'blue')
   const [languageCode, setLanguageCode] = useState<'vi' | 'en'>(profile?.languageCode ?? 'vi')
+  const [maturityLimit, setMaturityLimit] = useState<MaturityLimit>(profile?.maturityLimit ?? null)
+  const maturityOptions = isKids ? KIDS_MATURITY_OPTIONS : ADULT_MATURITY_OPTIONS
   const [confirmDelete, setConfirmDelete] = useState(false)
   const wasSaving = useRef(false)
 
@@ -41,13 +44,15 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    const input = { name: name.trim(), isKids, avatarKey, languageCode }
+    const input = { name: name.trim(), isKids, avatarKey, languageCode, maturityLimit }
     dispatch(profile ? profileUpdateRequested({ profileId: profile.profileId, input }) : profileCreateRequested(input))
   }
 
   const toggleKids = (value: boolean) => {
     setIsKids(value)
     if (value && !profile) setAvatarKey('kids')
+    // Kids profiles only offer "kids" (12) and "little kids" (7): drop a 13/16 tier picked for an adult profile.
+    if (value && maturityLimit !== null && maturityLimit !== 7) setMaturityLimit(null)
   }
 
   const saving = save.status === 'saving'
@@ -80,8 +85,23 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
               <input type="checkbox" checked={isKids} onChange={(e) => toggleKids(e.target.checked)} className="size-5 accent-brand" />
               <span>
                 Hồ sơ trẻ em
-                <span className="block text-xs text-muted">Chỉ hiện phim và series dành cho 12 tuổi trở xuống.</span>
+                <span className="block text-xs text-muted">Giao diện trẻ em, không vào được trang quản trị.</span>
               </span>
+            </label>
+
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Giới hạn độ tuổi</span>
+              <select
+                value={maturityLimit ?? ''}
+                onChange={(e) => setMaturityLimit(e.target.value === '' ? null : (Number(e.target.value) as MaturityLimit))}
+                className="w-full rounded-sm bg-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-white"
+              >
+                {maturityOptions.map((o) => (
+                  <option key={o.value ?? 'all'} value={o.value ?? ''}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="block text-sm">

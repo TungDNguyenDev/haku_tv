@@ -1,11 +1,12 @@
 import { http } from '../../services/http'
-import type { AuthResponse, AvatarKey, Profile } from '../auth/authApi'
+import type { AuthResponse, AvatarKey, MaturityLimit, Profile } from '../auth/authApi'
 
 export interface ProfileInput {
   name: string
   isKids: boolean
   avatarKey: AvatarKey
   languageCode: 'vi' | 'en'
+  maturityLimit: MaturityLimit
 }
 
 export const MAX_PROFILES = 5
@@ -26,7 +27,7 @@ export async function deleteProfile(profileId: number): Promise<void> {
   await http.delete(`/api/profiles/${profileId}`)
 }
 
-/** Returns an access token that carries the profile (its Kids limit and language). */
-export async function selectProfile(profileId: number): Promise<AuthResponse> {
-  return (await http.post<AuthResponse>(`/api/profiles/${profileId}/select`)).data
+/** Returns an access token that carries the profile (maturity limit, language). Locked profiles need their PIN. */
+export async function selectProfile(profileId: number, pin?: string): Promise<AuthResponse> {
+  return (await http.post<AuthResponse>(`/api/profiles/${profileId}/select`, pin ? { pin } : {})).data
 }

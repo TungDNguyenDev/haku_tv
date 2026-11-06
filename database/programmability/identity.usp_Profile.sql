@@ -2,6 +2,8 @@
     Profile procs. Every proc takes @AccountId from the caller's token and filters on it, so one account can never
     read or change another account's profiles by guessing a ProfileId (IDOR): a foreign id simply is "not found".
 
+    PinHash is returned for the API to verify a PIN; the API never sends it to the client (only HasPin).
+
     Errors: 50030 = profile limit reached, 50031 = name already used in this account,
             50032 = profile not found (in this account), 50033 = cannot delete the last profile.
 */
@@ -12,7 +14,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT p.ProfileId, p.Name, p.IsKids, p.AvatarKey, p.LanguageCode, p.MaxMaturityAge
+    SELECT p.ProfileId, p.Name, p.IsKids, p.AvatarKey, p.LanguageCode, p.MaturityLimit, p.MaxMaturityAge, p.PinHash
     FROM   [identity].Profile AS p
     WHERE  p.AccountId = @AccountId                -- seek on UQ_Profile_Account_Name (AccountId leads)
     ORDER BY p.ProfileId;                           -- creation order, the first (owner) profile first
@@ -26,7 +28,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT p.ProfileId, p.Name, p.IsKids, p.AvatarKey, p.LanguageCode, p.MaxMaturityAge
+    SELECT p.ProfileId, p.Name, p.IsKids, p.AvatarKey, p.LanguageCode, p.MaturityLimit, p.MaxMaturityAge, p.PinHash
     FROM   [identity].Profile AS p
     WHERE  p.ProfileId = @ProfileId AND p.AccountId = @AccountId;
 END;
@@ -44,6 +46,7 @@ CREATE OR ALTER PROCEDURE [identity].usp_Profile_Create
     @IsKids       bit,
     @AvatarKey    varchar(20),
     @LanguageCode varchar(5),
+    @MaturityLimit tinyint = NULL,
     @MaxProfiles  tinyint = 5
 AS
 BEGIN
@@ -70,8 +73,8 @@ BEGIN
         THROW 50031, N'identity.usp_Profile_Create: this name is already used by another profile.', 1;
     END;
 
-    INSERT INTO [identity].Profile (AccountId, Name, IsKids, AvatarKey, LanguageCode)
-    VALUES (@AccountId, @Name, @IsKids, @AvatarKey, @LanguageCode);
+    INSERT INTO [identity].Profile (AccountId, Name, IsKids, AvatarKey, LanguageCode, MaturityLimit)
+    VALUES (@AccountId, @Name, @IsKids, @AvatarKey, @LanguageCode, @MaturityLimit);
     SET @ProfileId = SCOPE_IDENTITY();
 
     COMMIT TRANSACTION;
@@ -86,7 +89,8 @@ CREATE OR ALTER PROCEDURE [identity].usp_Profile_Update
     @Name         nvarchar(50),
     @IsKids       bit,
     @AvatarKey    varchar(20),
-    @LanguageCode varchar(5)
+    @LanguageCode varchar(5),
+    @MaturityLimit tinyint = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -95,7 +99,7 @@ BEGIN
         THROW 50031, N'identity.usp_Profile_Update: this name is already used by another profile.', 1;
 
     UPDATE [identity].Profile
-    SET    Name = @Name, IsKids = @IsKids, AvatarKey = @AvatarKey, LanguageCode = @LanguageCode
+    SET    Name = @Name, IsKids = @IsKids, AvatarKey = @AvatarKey, LanguageCode = @LanguageCode, MaturityLimit = @MaturityLimit
     WHERE  ProfileId = @ProfileId AND AccountId = @AccountId;
 
     IF @@ROWCOUNT = 0
@@ -134,5 +138,27 @@ BEGIN
     DELETE FROM [identity].Profile WHERE ProfileId = @ProfileId AND AccountId = @AccountId;
 
     COMMIT TRANSACTION;
+END;
+GO
+
+/*
+    Sets (@PinHash) or removes (NULL) the profile lock. The API checks the account password before calling this,
+    and hashes the 4 digits with the password hasher: 10 000 possible PINs are trivial to brute-force from a plain
+    SHA-256, but each PBKDF2 guess is deliberately slow, and the API rate-limits PIN attempts.
+*/
+CREATE OR ALTER PROCEDURE [identity].usp_Profile_SetPin
+    @AccountId int,
+    @ProfileId int,
+    @PinHash   varchar(200) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE [identity].Profile
+    SET    PinHash = @PinHash
+    WHERE  ProfileId = @ProfileId AND AccountId = @AccountId;
+
+    IF @@ROWCOUNT = 0
+        THROW 50032, N'identity.usp_Profile_SetPin: profile not found.', 1;
 END;
 GO

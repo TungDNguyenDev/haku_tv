@@ -57,6 +57,10 @@ Khóa ký JWT: nếu chưa đặt, API tự sinh khóa ngẫu nhiên mỗi lần
 dotnet user-secrets set "Jwt:SigningKey" "<chuỗi ngẫu nhiên từ 48 ký tự>" --project backend/src/HakuTV.Api
 ```
 
+Quên mật khẩu: bản local không gửi email thật. Email "đặt lại mật khẩu" được ghi thành file `.html` trong thư mục
+`.dev-mail/` ở gốc dự án (git bỏ qua thư mục này); mở file mới nhất rồi bấm nút trong đó. Trang tài khoản: http://localhost:5173/account
+(đổi mật khẩu, thiết bị đang đăng nhập, khóa hồ sơ bằng PIN).
+
 Cấp quyền admin cho một tài khoản (để thấy "Trang quản trị"), rồi tải lại trang web:
 
 ```sql

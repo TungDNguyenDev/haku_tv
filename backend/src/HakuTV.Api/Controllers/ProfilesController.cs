@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.RateLimiting;
 using HakuTV.Api.Auth;
 using HakuTV.Core.Identity;
+using IdentityError = HakuTV.Core.Identity.IdentityError;   // Microsoft.AspNetCore.Identity has a class with the same name
 
 namespace HakuTV.Api.Controllers;
 
@@ -12,7 +16,11 @@ namespace HakuTV.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/profiles")]
-public sealed class ProfilesController(IProfileRepository profiles, TokenService tokens) : ControllerBase
+public sealed class ProfilesController(
+    IProfileRepository profiles,
+    IAccountRepository accounts,
+    IPasswordHasher<AccountLogin> hasher,
+    TokenService tokens) : ControllerBase
 {
     [HttpGet]
     public async Task<IEnumerable<ProfileDto>> List(CancellationToken ct) =>
@@ -61,13 +69,54 @@ public sealed class ProfilesController(IProfileRepository profiles, TokenService
         }
     }
 
-    /// <summary>Pick a profile: returns an access token that carries it (and its Kids limit, language).</summary>
+    /// <summary>
+    /// Set or remove the profile lock (Pin = null removes it). Needs the ACCOUNT password, like the real services:
+    /// otherwise anyone at an unlocked profile picker could lock others out or remove a lock.
+    /// </summary>
+    [HttpPut("{profileId:int}/pin")]
+    [EnableRateLimiting(RateLimits.Auth)]
+    public async Task<IActionResult> SetPin(int profileId, SetPinRequest request, CancellationToken ct)
+    {
+        var account = await accounts.GetByIdAsync(User.AccountId(), ct);
+        if (account is null) return Unauthorized();
+        if (hasher.VerifyHashedPassword(new AccountLogin(), account.PasswordHash, request.Password ?? "") == PasswordVerificationResult.Failed)
+            return BadRequest(new ApiError("wrong-password", "Mật khẩu tài khoản không đúng."));
+        if (request.Pin is not null && !ProfileRules.IsValidPin(request.Pin))
+            return BadRequest(new ApiError("invalid-pin", "Mã PIN gồm đúng 4 chữ số."));
+
+        try
+        {
+            var pinHash = request.Pin is null ? null : hasher.HashPassword(new AccountLogin(), request.Pin);
+            await profiles.SetPinAsync(account.AccountId, profileId, pinHash, ct);
+            return NoContent();
+        }
+        catch (IdentityRuleException ex)
+        {
+            return RuleError(ex);
+        }
+    }
+
+    /// <summary>
+    /// Pick a profile: returns an access token that carries it (and its maturity limit, language).
+    /// A locked profile needs its PIN; attempts are rate limited per account (RateLimits.Pin).
+    /// </summary>
     [HttpPost("{profileId:int}/select")]
-    public async Task<ActionResult<AuthResponse>> Select(int profileId, CancellationToken ct)
+    [EnableRateLimiting(RateLimits.Pin)]
+    public async Task<ActionResult<AuthResponse>> Select(int profileId,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] SelectProfileRequest? request, CancellationToken ct)
     {
         var accountId = User.AccountId();
         var profile = await profiles.GetAsync(accountId, profileId, ct);
         if (profile is null) return NotFound(new ApiError("profile-not-found", "Không tìm thấy hồ sơ."));
+
+        // Re-selecting the profile already in use (e.g. after editing it) needs no PIN: it was unlocked to get this token.
+        if (profile.PinHash is { } pinHash && User.ProfileId() != profileId)
+        {
+            if (string.IsNullOrEmpty(request?.Pin))
+                return StatusCode(StatusCodes.Status403Forbidden, new ApiError("pin-required", "Hồ sơ này đã khóa, hãy nhập mã PIN."));
+            if (hasher.VerifyHashedPassword(new AccountLogin(), pinHash, request.Pin) == PasswordVerificationResult.Failed)
+                return StatusCode(StatusCodes.Status403Forbidden, new ApiError("pin-invalid", "Mã PIN không đúng."));
+        }
 
         // Admin status is carried over from the current token; every token refresh re-reads it from the database.
         var access = tokens.CreateAccessToken(accountId, User.IsAdmin(), profile);
@@ -77,7 +126,7 @@ public sealed class ProfilesController(IProfileRepository profiles, TokenService
     // ---------- helpers ----------
 
     private static ProfileInput ToInput(ProfileRequest r) =>
-        new(r.Name!.Trim(), r.IsKids, r.AvatarKey!, r.LanguageCode ?? "vi");
+        new(r.Name!.Trim(), r.IsKids, r.AvatarKey!, r.LanguageCode ?? "vi", r.MaturityLimit);
 
     private BadRequestObjectResult? Validate(ProfileRequest r)
     {
@@ -88,6 +137,8 @@ public sealed class ProfilesController(IProfileRepository profiles, TokenService
             return BadRequest(new ApiError("invalid-avatar", "Ảnh đại diện không hợp lệ."));
         if (r.LanguageCode is not (null or "vi" or "en"))
             return BadRequest(new ApiError("invalid-language", "Ngôn ngữ không hợp lệ."));
+        if (r.MaturityLimit is { } limit && !ProfileRules.MaturityLimits.Contains(limit))
+            return BadRequest(new ApiError("invalid-maturity", "Giới hạn độ tuổi không hợp lệ."));
         return null;
     }
 
@@ -101,4 +152,7 @@ public sealed class ProfilesController(IProfileRepository profiles, TokenService
     };
 }
 
-public sealed record ProfileRequest(string? Name, bool IsKids, string? AvatarKey, string? LanguageCode);
+/// <param name="MaturityLimit">null = all titles, 16 / 13 / 7 = titles rated up to that age.</param>
+public sealed record ProfileRequest(string? Name, bool IsKids, string? AvatarKey, string? LanguageCode, byte? MaturityLimit);
+public sealed record SetPinRequest(string? Password, string? Pin);
+public sealed record SelectProfileRequest(string? Pin);

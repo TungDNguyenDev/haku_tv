@@ -3,6 +3,9 @@ media/*
 !media/README.md
 tools/bin/
 
+# --- dev mailbox: emails the API "sends" locally (password reset links) ---
+.dev-mail/
+
 # --- .NET ---
 bin/
 obj/

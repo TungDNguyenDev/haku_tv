@@ -1,5 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit'
 import createSagaMiddleware from 'redux-saga'
+import accountReducer from '../features/account/accountSlice'
 import authReducer, { sessionRestoreRequested } from '../features/auth/authSlice'
 import { configureSession, refreshSession } from '../features/auth/session'
 import browseReducer from '../features/browse/browseSlice'
@@ -13,6 +14,7 @@ const sagaMiddleware = createSagaMiddleware()
 export const store = configureStore({
   reducer: {
     auth: authReducer,
+    account: accountReducer,
     profiles: profilesReducer,
     browse: browseReducer,
     playback: playbackReducer,

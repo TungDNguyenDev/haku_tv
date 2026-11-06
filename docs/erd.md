@@ -196,3 +196,12 @@ Browse và playback yêu cầu có `pid` (policy `Profile`) và lấy giới h�
 | `identity.Account.IsAdmin bit` | ai được vào trang quản trị; đọc lại từ DB ở mỗi lần refresh token nên cấp/thu quyền có hiệu lực trong vòng 15 phút |
 | `IX_RefreshToken_ExpiresAt` | `usp_RefreshToken_Purge` xóa theo lô `DELETE TOP (n) ... WHERE ExpiresAt < @Cutoff`: có index thì mỗi lô là một range seek, không quét cả bảng trong lúc giữ khóa |
 | `drm.usp_ContentKey_GetForPlayback` thay `GetByKeyIds` | key chỉ được trả khi `EXISTS` một `VideoAsset` của đúng phim dùng key đó và phim nằm trong giới hạn tuổi của hồ sơ; seek `UQ_ContentKey_KeyId` → `IX_VideoAsset_ContentKey` → PK `Title` |
+
+## Tự quản lý tài khoản (migration 0008)
+
+| Thay đổi | Ghi chú |
+|---|---|
+| `identity.PasswordResetToken` | chỉ lưu SHA-256; `UsedAt` đánh dấu đã dùng **hoặc** đã bị link mới hơn thay thế; `IX (AccountId, CreatedAt)` cho giới hạn 3 link/giờ (đếm với `UPDLOCK, HOLDLOCK` để hai request song song không vượt giới hạn) |
+| `Profile.PinHash` | PIN 4 số được băm bằng PasswordHasher (PBKDF2): 10 000 giá trị băm SHA-256 thì dò trong tích tắc, PBKDF2 + rate limit thì không. API chỉ trả `HasPin` |
+| `Profile.MaturityLimit` + tính lại `MaxMaturityAge` | cột tính toán PERSISTED không ALTER được: `DROP COLUMN` rồi `ADD` lại với công thức mới `CASE WHEN IsKids = 1 THEN (7 hoặc 12) ELSE MaturityLimit END` |
+| `usp_RefreshToken_ListSessions` | "thiết bị" = một family refresh token; dùng window function: `FIRST_VALUE(UserAgent) OVER (PARTITION BY FamilyId ORDER BY CreatedAt DESC)`, `MIN/MAX(CreatedAt) OVER (...)` |

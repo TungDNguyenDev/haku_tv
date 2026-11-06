@@ -31,6 +31,11 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
   JWT 15 phút + refresh token 30 ngày trong cookie HttpOnly (xoay vòng, phát hiện token bị đánh cắp), tối đa 5 hồ sơ, hồ sơ trẻ em (≤ 12 tuổi),
   ngôn ngữ theo hồ sơ. Browse/playback bắt buộc đã chọn hồ sơ; hồ sơ trẻ em bị chặn phát phim vượt độ tuổi (403).
   Chi tiết thiết kế: [erd.md](erd.md#đăng-nhập-và-hồ-sơ-schema-identity-giai-đoạn-3).
+- **Tự quản lý tài khoản (nhóm B): xong.** Quên/đặt lại mật khẩu (link dùng 1 lần, 30 phút, tối đa 3 link/giờ; email lưu vào
+  thư mục `.dev-mail`), đổi mật khẩu (đăng xuất các thiết bị khác), danh sách thiết bị đang đăng nhập + đăng xuất từng máy / tất cả,
+  khóa hồ sơ bằng PIN 4 số (cần mật khẩu tài khoản; giới hạn 10 lần thử/5 phút/tài khoản), giới hạn độ tuổi nhiều mức
+  (mọi độ tuổi / 16+ / 13+ / 7+; trẻ em 12 hoặc 7). Trang `/account`. Footer mới.
+  Còn để sau: dịch giao diện sang tiếng Anh theo ngôn ngữ hồ sơ (hiện chỉ dữ liệu phim đổi ngôn ngữ).
 - **Gia cố bảo mật sau Giai đoạn 3: xong.** License DRM theo quyền xem từng phim, `/media` bằng cookie ký, cờ admin,
   dọn refresh token định kỳ, xử lý lỗi chung (xem "Các quyết định đã chốt" bên dưới).
 

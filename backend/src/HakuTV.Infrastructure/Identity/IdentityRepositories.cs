@@ -64,6 +64,48 @@ public sealed class AccountRepository(ISqlConnectionFactory db) : IAccountReposi
             new { AccountId = accountId, Succeeded = succeeded, NewPasswordHash = newPasswordHash },
             commandType: CommandType.StoredProcedure, cancellationToken: ct));
     }
+
+    public async Task<AccountDetails?> GetByIdAsync(int accountId, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        return await conn.QuerySingleOrDefaultAsync<AccountDetails>(new CommandDefinition(
+            "[identity].usp_Account_GetById", new { AccountId = accountId },
+            commandType: CommandType.StoredProcedure, cancellationToken: ct));
+    }
+
+    public async Task ChangePasswordAsync(int accountId, string newPasswordHash, byte[]? keepTokenHash, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition(
+            "[identity].usp_Account_ChangePassword",
+            new { AccountId = accountId, NewPasswordHash = newPasswordHash, KeepTokenHash = keepTokenHash },
+            commandType: CommandType.StoredProcedure, cancellationToken: ct));
+    }
+
+    public async Task<int?> CreatePasswordResetAsync(string email, byte[] tokenHash, DateTime expiresAt, string? requestIp,
+        CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        return await conn.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
+            "[identity].usp_PasswordReset_Create",
+            new { Email = email, TokenHash = tokenHash, ExpiresAt = expiresAt, RequestIp = requestIp },
+            commandType: CommandType.StoredProcedure, cancellationToken: ct));
+    }
+
+    public async Task<PasswordResetStatus> ConsumePasswordResetAsync(byte[] tokenHash, string newPasswordHash, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        var status = await conn.QuerySingleAsync<string>(new CommandDefinition(
+            "[identity].usp_PasswordReset_Consume", new { TokenHash = tokenHash, NewPasswordHash = newPasswordHash },
+            commandType: CommandType.StoredProcedure, cancellationToken: ct));
+        return status switch
+        {
+            "ok" => PasswordResetStatus.Ok,
+            "used" => PasswordResetStatus.Used,
+            "expired" => PasswordResetStatus.Expired,
+            _ => PasswordResetStatus.Invalid,
+        };
+    }
 }
 
 public sealed class RefreshTokenRepository(ISqlConnectionFactory db) : IRefreshTokenRepository
@@ -114,6 +156,23 @@ public sealed class RefreshTokenRepository(ISqlConnectionFactory db) : IRefreshT
             commandType: CommandType.StoredProcedure, commandTimeout: 300, cancellationToken: ct));
     }
 
+    public async Task<IReadOnlyList<SessionInfo>> ListSessionsAsync(int accountId, byte[]? currentTokenHash, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        var rows = await conn.QueryAsync<SessionInfo>(new CommandDefinition(
+            "[identity].usp_RefreshToken_ListSessions", new { AccountId = accountId, CurrentTokenHash = currentTokenHash },
+            commandType: CommandType.StoredProcedure, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    public async Task<int> RevokeSessionsAsync(int accountId, Guid? familyId, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        return await conn.QuerySingleAsync<int>(new CommandDefinition(
+            "[identity].usp_RefreshToken_RevokeSessions", new { AccountId = accountId, FamilyId = familyId },
+            commandType: CommandType.StoredProcedure, cancellationToken: ct));
+    }
+
     private static string? Truncate(string? value) => value is { Length: > 200 } ? value[..200] : value;
 }
 
@@ -142,7 +201,8 @@ public sealed class ProfileRepository(ISqlConnectionFactory db) : IProfileReposi
             await using var conn = await db.OpenAsync(ct);
             return await conn.QuerySingleAsync<Profile>(new CommandDefinition(
                 "[identity].usp_Profile_Create",
-                new { AccountId = accountId, input.Name, input.IsKids, input.AvatarKey, input.LanguageCode, MaxProfiles = ProfileRules.MaxProfiles },
+                new { AccountId = accountId, input.Name, input.IsKids, input.AvatarKey, input.LanguageCode, input.MaturityLimit,
+                      MaxProfiles = ProfileRules.MaxProfiles },
                 commandType: CommandType.StoredProcedure, cancellationToken: ct));
         });
 
@@ -152,7 +212,8 @@ public sealed class ProfileRepository(ISqlConnectionFactory db) : IProfileReposi
             await using var conn = await db.OpenAsync(ct);
             return await conn.QuerySingleAsync<Profile>(new CommandDefinition(
                 "[identity].usp_Profile_Update",
-                new { AccountId = accountId, ProfileId = profileId, input.Name, input.IsKids, input.AvatarKey, input.LanguageCode },
+                new { AccountId = accountId, ProfileId = profileId, input.Name, input.IsKids, input.AvatarKey, input.LanguageCode,
+                      input.MaturityLimit },
                 commandType: CommandType.StoredProcedure, cancellationToken: ct));
         });
 
@@ -162,6 +223,15 @@ public sealed class ProfileRepository(ISqlConnectionFactory db) : IProfileReposi
             await using var conn = await db.OpenAsync(ct);
             return await conn.ExecuteAsync(new CommandDefinition(
                 "[identity].usp_Profile_Delete", new { AccountId = accountId, ProfileId = profileId },
+                commandType: CommandType.StoredProcedure, cancellationToken: ct));
+        });
+
+    public Task SetPinAsync(int accountId, int profileId, string? pinHash, CancellationToken ct = default) =>
+        IdentitySqlErrors.Run(async () =>
+        {
+            await using var conn = await db.OpenAsync(ct);
+            return await conn.ExecuteAsync(new CommandDefinition(
+                "[identity].usp_Profile_SetPin", new { AccountId = accountId, ProfileId = profileId, PinHash = pinHash },
                 commandType: CommandType.StoredProcedure, cancellationToken: ct));
         });
 }

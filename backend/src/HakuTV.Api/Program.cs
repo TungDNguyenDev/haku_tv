@@ -59,6 +59,12 @@ builder.Services.AddSingleton<IPasswordHasher<AccountLogin>, PasswordHasher<Acco
 // Signed /media cookies use a key derived from the JWT key (one secret to manage, two independent keys).
 builder.Services.AddSingleton(new MediaAccessSigner(jwt.SigningKey));
 builder.Services.AddHostedService<RefreshTokenCleanup>();
+
+// Emails (password reset) go to a local folder in this project; see DevMailbox.
+var mailOptions = builder.Configuration.GetSection(MailOptions.Section).Get<MailOptions>() ?? new MailOptions();
+builder.Services.AddSingleton<IMailSender>(sp => new DevMailbox(
+    Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, mailOptions.PickupDirectory)),
+    sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<DevMailbox>>()));
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
 
@@ -83,6 +89,12 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy(RateLimits.Auth, http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+
+    // Profile PIN: 10 selects per 5 minutes per ACCOUNT (from the token), whatever the IP. Picking unlocked profiles
+    // goes through the same endpoint, so the limit is generous for normal use and slow for guessing 10 000 PINs.
+    o.AddPolicy(RateLimits.Pin, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.User.FindFirst(AuthClaims.AccountId)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(5) }));
 });
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -125,8 +137,8 @@ app.UseStaticFiles(new StaticFileOptions
     ContentTypeProvider = contentTypes,
 });
 
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();          // after authentication: the PIN policy partitions by the account in the token
 app.UseAuthorization();
 app.MapControllers();
 

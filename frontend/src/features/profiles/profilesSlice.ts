@@ -10,6 +10,8 @@ interface ProfilesState {
   // The editor dialog: what is being saved and whether it failed.
   save: { status: 'idle' | 'saving' | 'failed'; error: string | null }
   selectingId: number | null
+  // A locked profile was picked: show the PIN dialog for it (error = previous attempt failed).
+  pinPrompt: { profileId: number; error: string | null } | null
 }
 
 const initialState: ProfilesState = {
@@ -18,6 +20,7 @@ const initialState: ProfilesState = {
   error: null,
   save: { status: 'idle', error: null },
   selectingId: null,
+  pinPrompt: null,
 }
 
 const profilesSlice = createSlice({
@@ -63,8 +66,14 @@ const profilesSlice = createSlice({
       state.save = { status: 'idle', error: null }
     },
 
-    profileSelectRequested(state, action: PayloadAction<number>) {
-      state.selectingId = action.payload
+    profileSelectRequested(state, action: PayloadAction<{ profileId: number; pin?: string }>) {
+      state.selectingId = action.payload.profileId
+    },
+    pinPromptOpened(state, action: PayloadAction<{ profileId: number; error: string | null }>) {
+      state.pinPrompt = action.payload
+    },
+    pinPromptClosed(state) {
+      state.pinPrompt = null
     },
     profileSelectFinished(state) {
       state.selectingId = null
@@ -88,5 +97,7 @@ export const {
   profileSaveReset,
   profileSelectRequested,
   profileSelectFinished,
+  pinPromptOpened,
+  pinPromptClosed,
 } = profilesSlice.actions
 export default profilesSlice.reducer

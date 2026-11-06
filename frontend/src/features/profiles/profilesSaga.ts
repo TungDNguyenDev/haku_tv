@@ -19,6 +19,8 @@ import {
   profileDeleteRequested,
   profileSaved,
   profileSaveFailed,
+  pinPromptClosed,
+  pinPromptOpened,
   profilesFailed,
   profileSelectFinished,
   profileSelectRequested,
@@ -76,13 +78,19 @@ function* remove(action: PayloadAction<number>) {
   }
 }
 
-function* choose(action: PayloadAction<number>) {
+function* choose(action: PayloadAction<{ profileId: number; pin?: string }>) {
+  const { profileId, pin } = action.payload
   try {
-    const res: AuthResponse = yield call(selectProfile, action.payload)
-    rememberProfile(action.payload)
+    const res: AuthResponse = yield call(selectProfile, profileId, pin)
+    rememberProfile(profileId)
+    yield put(pinPromptClosed())
     yield put(profileSelected(res))
   } catch (err) {
-    yield put(profilesFailed(apiError(err).message))
+    const { code, message } = apiError(err)
+    // Locked profile: ask for the PIN (again, with the reason, when it was wrong or too many tries).
+    if (code === 'pin-required') yield put(pinPromptOpened({ profileId, error: null }))
+    else if (code === 'pin-invalid' || code === 'rate-limited') yield put(pinPromptOpened({ profileId, error: message }))
+    else yield put(profilesFailed(message))
   } finally {
     yield put(profileSelectFinished())
   }

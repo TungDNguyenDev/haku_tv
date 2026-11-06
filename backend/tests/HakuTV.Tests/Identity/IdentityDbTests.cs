@@ -183,6 +183,103 @@ public sealed class IdentityDbTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Reset_link_works_once_supersedes_older_links_and_signs_out_everywhere()
+    {
+        var (accountId, _) = await _accounts.RegisterAsync(_email, "old-hash", "A", "vi");
+        var session = NewHash();
+        await _tokens.IssueAsync(accountId, session, DateTime.UtcNow.AddDays(1), "test");
+        for (var i = 0; i < 5; i++) await _accounts.RecordLoginAsync(accountId, succeeded: false, newPasswordHash: null);   // locked
+
+        Assert.Null(await _accounts.CreatePasswordResetAsync("nobody-" + _email, NewHash(), DateTime.UtcNow.AddMinutes(30), null));
+
+        var first = NewHash();
+        var second = NewHash();
+        Assert.Equal(accountId, await _accounts.CreatePasswordResetAsync(_email, first, DateTime.UtcNow.AddMinutes(30), "127.0.0.1"));
+        Assert.Equal(accountId, await _accounts.CreatePasswordResetAsync(_email, second, DateTime.UtcNow.AddMinutes(30), "127.0.0.1"));
+
+        Assert.Equal(PasswordResetStatus.Used, await _accounts.ConsumePasswordResetAsync(first, "x"));      // superseded
+        Assert.Equal(PasswordResetStatus.Ok, await _accounts.ConsumePasswordResetAsync(second, "new-hash"));
+        Assert.Equal(PasswordResetStatus.Used, await _accounts.ConsumePasswordResetAsync(second, "again"));  // one use only
+        Assert.Equal(PasswordResetStatus.Invalid, await _accounts.ConsumePasswordResetAsync(NewHash(), "x"));
+
+        var login = await _accounts.GetForLoginAsync(_email);
+        Assert.Equal(("new-hash", (DateTime?)null), (login!.PasswordHash, login.LockoutUntil));                   // lockout cleared
+        Assert.NotEqual(RefreshStatus.Ok, (await _tokens.RotateAsync(session, NewHash(), DateTime.UtcNow.AddDays(1), "test")).Status);
+
+        // Third link in the hour is accepted, the fourth is silently refused (flood limit = 3 per hour).
+        Assert.NotNull(await _accounts.CreatePasswordResetAsync(_email, NewHash(), DateTime.UtcNow.AddMinutes(30), null));
+        Assert.Null(await _accounts.CreatePasswordResetAsync(_email, NewHash(), DateTime.UtcNow.AddMinutes(30), null));
+
+        var expired = NewHash();
+        await using var conn = new SqlConnection(ConnectionString);
+        await conn.ExecuteAsync("""
+            INSERT INTO [identity].PasswordResetToken (AccountId, TokenHash, ExpiresAt) VALUES (@accountId, @expired, DATEADD(MINUTE, -1, SYSUTCDATETIME()))
+            """, new { accountId, expired });
+        Assert.Equal(PasswordResetStatus.Expired, await _accounts.ConsumePasswordResetAsync(expired, "x"));
+    }
+
+    [Fact]
+    public async Task Change_password_keeps_this_device_and_signs_out_the_others()
+    {
+        var (accountId, _) = await _accounts.RegisterAsync(_email, "old", "A", "vi");
+        var expires = DateTime.UtcNow.AddDays(1);
+        var here = NewHash();
+        var phone = NewHash();
+        await _tokens.IssueAsync(accountId, here, expires, "Mozilla/5.0 (Windows NT 10.0) Chrome/130.0");
+        await _tokens.IssueAsync(accountId, phone, expires, "Mozilla/5.0 (Linux; Android 14) Chrome/130.0");
+
+        var sessions = await _tokens.ListSessionsAsync(accountId, here);
+        Assert.Equal(2, sessions.Count);
+        Assert.True(sessions[0].IsCurrent);                                     // this device first
+        Assert.Contains("Windows", sessions[0].UserAgent);
+
+        await _accounts.ChangePasswordAsync(accountId, "new", keepTokenHash: here);
+        Assert.Equal("new", (await _accounts.GetByIdAsync(accountId))!.PasswordHash);
+        Assert.Single(await _tokens.ListSessionsAsync(accountId, here));
+
+        var next = NewHash();
+        Assert.Equal(RefreshStatus.Ok, (await _tokens.RotateAsync(here, next, expires, "test")).Status);
+        Assert.NotEqual(RefreshStatus.Ok, (await _tokens.RotateAsync(phone, NewHash(), expires, "test")).Status);
+
+        // Sign out one device by id, then everything.
+        await _tokens.IssueAsync(accountId, NewHash(), expires, "tablet");
+        var tablet = (await _tokens.ListSessionsAsync(accountId, next)).Single(s => !s.IsCurrent);
+        Assert.Equal(0, await _tokens.RevokeSessionsAsync(accountId + 100000, tablet.FamilyId));   // another account: nothing
+        Assert.True(await _tokens.RevokeSessionsAsync(accountId, tablet.FamilyId) > 0);
+        Assert.True(await _tokens.RevokeSessionsAsync(accountId, familyId: null) > 0);
+        Assert.Empty(await _tokens.ListSessionsAsync(accountId, next));
+    }
+
+    [Fact]
+    public async Task Maturity_tiers_and_pin_are_stored_on_the_profile()
+    {
+        var (accountId, ownerId) = await _accounts.RegisterAsync(_email, "h", "Owner", "vi");
+
+        var teen = await _profiles.CreateAsync(accountId, new ProfileInput("Teen", false, "blue", "vi", MaturityLimit: 13));
+        var little = await _profiles.CreateAsync(accountId, new ProfileInput("Little", true, "kids", "vi", MaturityLimit: 7));
+        var kids = await _profiles.CreateAsync(accountId, new ProfileInput("Kids", true, "kids", "vi"));
+        Assert.Equal((byte?)13, teen.MaxMaturityAge);
+        Assert.Equal((byte?)7, little.MaxMaturityAge);      // little kids
+        Assert.Equal((byte?)12, kids.MaxMaturityAge);       // kids default
+        Assert.Null((await _profiles.GetAsync(accountId, ownerId))!.MaxMaturityAge);
+
+        await using (var conn = new SqlConnection(ConnectionString))
+        {
+            var bad = await Assert.ThrowsAsync<SqlException>(() => conn.ExecuteAsync(
+                "UPDATE [identity].Profile SET MaturityLimit = 12 WHERE ProfileId = @id", new { id = teen.ProfileId }));
+            Assert.Contains("CK_Profile_MaturityLimit", bad.Message);
+        }
+
+        await _profiles.SetPinAsync(accountId, teen.ProfileId, "pin-hash");
+        Assert.True((await _profiles.GetAsync(accountId, teen.ProfileId))!.HasPin);
+        await _profiles.SetPinAsync(accountId, teen.ProfileId, null);
+        Assert.False((await _profiles.GetAsync(accountId, teen.ProfileId))!.HasPin);
+
+        var foreign = await Assert.ThrowsAsync<IdentityRuleException>(() => _profiles.SetPinAsync(accountId + 100000, teen.ProfileId, "x"));
+        Assert.Equal(IdentityError.ProfileNotFound, foreign.Error);
+    }
+
+    [Fact]
     public async Task Expired_token_is_refused_and_logout_revokes_the_family()
     {
         var (accountId, _) = await _accounts.RegisterAsync(_email, "h", "A", "vi");

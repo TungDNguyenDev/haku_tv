@@ -28,7 +28,6 @@ public sealed class AuthController(
     TimeProvider clock) : ControllerBase
 {
     public const string RefreshCookie = "hakutv_rt";
-    private const int MinPasswordLength = 8;
 
     // Verified when the email does not exist, so "unknown email" takes as long as "wrong password"
     // and response times do not reveal which emails are registered.
@@ -40,8 +39,8 @@ public sealed class AuthController(
     {
         var email = NormalizeEmail(request.Email);
         if (email is null) return Problem400("invalid-email", "Email không hợp lệ.");
-        if (request.Password is not { Length: >= MinPasswordLength and <= 128 })
-            return Problem400("weak-password", $"Mật khẩu cần từ {MinPasswordLength} đến 128 ký tự.");
+        if (!PasswordRules.IsValid(request.Password))
+            return Problem400("weak-password", $"Mật khẩu cần từ {PasswordRules.MinLength} đến {PasswordRules.MaxLength} ký tự.");
 
         var profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? email.Split('@')[0] : request.ProfileName.Trim();
         if (profileName.Length > ProfileRules.MaxNameLength) profileName = profileName[..ProfileRules.MaxNameLength];
@@ -49,7 +48,7 @@ public sealed class AuthController(
         int accountId;
         try
         {
-            (accountId, _) = await accounts.RegisterAsync(email, hasher.HashPassword(new AccountLogin(), request.Password), profileName, "vi", ct);
+            (accountId, _) = await accounts.RegisterAsync(email, hasher.HashPassword(new AccountLogin(), request.Password!), profileName, "vi", ct);
         }
         catch (IdentityRuleException ex) when (ex.Error == IdentityError.EmailTaken)
         {
@@ -110,6 +109,9 @@ public sealed class AuthController(
             case RefreshStatus.Ok:
                 SetRefreshCookie(next);
                 var profile = request?.ProfileId is { } pid ? await profiles.GetAsync(result.AccountId!.Value, pid, ct) : null;
+                // A locked profile is never restored silently: otherwise anyone at this browser could skip the PIN by
+                // asking a refresh "with profile X". The app shows the picker and asks for the PIN instead.
+                if (profile?.HasPin == true) profile = null;
                 return Ok(AuthResult(result.AccountId!.Value, result.IsAdmin, profile));
 
             case RefreshStatus.Stale:
@@ -186,9 +188,12 @@ public sealed record RefreshRequest(int? ProfileId);
 
 public sealed record AuthResponse(string AccessToken, DateTime ExpiresAt, int AccountId, bool IsAdmin, ProfileDto? Profile);
 
-public sealed record ProfileDto(int ProfileId, string Name, bool IsKids, string AvatarKey, string LanguageCode)
+/// <remarks>HasPin only: the PIN hash never leaves the API.</remarks>
+public sealed record ProfileDto(int ProfileId, string Name, bool IsKids, string AvatarKey, string LanguageCode,
+    byte? MaturityLimit, bool HasPin)
 {
-    public static ProfileDto From(Profile p) => new(p.ProfileId, p.Name, p.IsKids, p.AvatarKey, p.LanguageCode);
+    public static ProfileDto From(Profile p) =>
+        new(p.ProfileId, p.Name, p.IsKids, p.AvatarKey, p.LanguageCode, p.MaturityLimit, p.HasPin);
 }
 
 /// <summary>Error body of the auth/profile endpoints: a stable code for the client, a message for humans.</summary>
@@ -200,4 +205,7 @@ public sealed record ApiError(string Code, string Error)
 public static class RateLimits
 {
     public const string Auth = "auth";
+
+    /// <summary>Profile PIN attempts: per account, so guessing a 4-digit PIN (10 000 values) takes days, not seconds.</summary>
+    public const string Pin = "pin";
 }

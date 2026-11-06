@@ -1,7 +1,9 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { GuestOnly, RequireAdmin, RequireProfile, RequireSession } from './components/routing'
+import AccountPage from './pages/AccountPage'
 import AuthPage from './pages/AuthPage'
+import { ForgotPasswordPage, ResetPasswordPage } from './pages/PasswordResetPages'
 import BrowsePage from './pages/BrowsePage'
 import ProfilesPage from './pages/ProfilesPage'
 
@@ -17,7 +19,11 @@ export default function App() {
           <Route path="/" element={<Navigate to="/browse" replace />} />
           <Route path="/login" element={<GuestOnly><AuthPage mode="login" /></GuestOnly>} />
           <Route path="/signup" element={<GuestOnly><AuthPage mode="register" /></GuestOnly>} />
+          {/* Open to everyone: the reset link must work even if this browser is signed in to another account. */}
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/profiles" element={<RequireSession><ProfilesPage /></RequireSession>} />
+          <Route path="/account" element={<RequireSession><AccountPage /></RequireSession>} />
           <Route path="/browse" element={<RequireProfile><BrowsePage /></RequireProfile>} />
           <Route path="/watch/:titleId" element={<RequireProfile><WatchPage /></RequireProfile>} />
           {/* Admin accounts only (identity.Account.IsAdmin), never on a Kids profile. */}

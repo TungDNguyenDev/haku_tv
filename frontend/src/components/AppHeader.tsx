@@ -112,12 +112,15 @@ function ProfileMenu() {
               disabled={selectingId !== null}
               onClick={() => {
                 setOpen(false)
-                dispatch(profileSelectRequested(p.profileId))
+                // Locked profile: the PIN is asked on the profile picker.
+                if (p.hasPin) navigate(`/profiles?unlock=${p.profileId}`)
+                else dispatch(profileSelectRequested({ profileId: p.profileId }))
               }}
               className="flex w-full items-center gap-3 px-4 py-1.5 text-left hover:underline"
             >
               <Avatar avatarKey={p.avatarKey} className="size-8 text-[8px]" />
               <span className="truncate">{p.name}</span>
+              {p.hasPin && <span className="text-xs text-muted" title="Đã khóa">🔒</span>}
               {selectingId === p.profileId && <span className="ml-auto size-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />}
             </button>
           ))}
@@ -129,6 +132,9 @@ function ProfileMenu() {
           >
             Quản lý hồ sơ
           </button>
+          <Link to="/account" role="menuitem" className="block px-4 py-1.5 hover:underline">
+            Tài khoản
+          </Link>
           {canAdmin && (
             <Link to="/admin" role="menuitem" className="block px-4 py-1.5 hover:underline">
               Trang quản trị

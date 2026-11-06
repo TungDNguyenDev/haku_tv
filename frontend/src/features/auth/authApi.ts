@@ -7,7 +7,12 @@ export interface Profile {
   isKids: boolean
   avatarKey: AvatarKey
   languageCode: 'vi' | 'en'
+  maturityLimit: MaturityLimit
+  hasPin: boolean
 }
+
+// null = every title; 16 / 13 / 7 = titles rated up to that age. Kids profiles: null means 12.
+export type MaturityLimit = null | 7 | 13 | 16
 
 export type AvatarKey = 'red' | 'blue' | 'yellow' | 'green' | 'purple' | 'teal' | 'orange' | 'kids'
 
