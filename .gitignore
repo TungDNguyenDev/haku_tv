@@ -1,0 +1,27 @@
+# --- media: video files and DRM keys never go into git ---
+media/*
+!media/README.md
+tools/bin/
+
+# --- .NET ---
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+appsettings.*.local.json
+
+# --- Node / frontend ---
+node_modules/
+dist/
+*.local
+.env.local
+.env.*.local
+
+# --- editors / OS ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+Thumbs.db
+.DS_Store

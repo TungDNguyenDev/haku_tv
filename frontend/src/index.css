@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* Design tokens for the viewer-facing UI. Use them as bg-brand, text-muted, bg-surface, ... */
+@theme {
+  --color-brand: #e50914;
+  --color-brand-hover: #f6121d;
+  --color-surface: #141414;
+  --color-surface-raised: #181818;
+  --color-muted: #b3b3b3;
+  --font-sans: "Netflix Sans", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-surface text-white antialiased;
+}
