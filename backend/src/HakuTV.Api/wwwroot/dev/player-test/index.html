@@ -7,8 +7,11 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23141414'/%3E%3Cpath fill='%23e50914' d='M15 11h11v17h12V11h11v42H38V37H26v16H15z'/%3E%3C/svg%3E" />
   <!--
     Dev-only test page, served by the API at /dev/player-test/ in the Development environment.
-    Video comes from /media/<name>/..., keys from POST /api/drm/clearkey/license (read from SQL Server).
-    The real player will live in the React app (shaka-player from npm).
+    Same rules as the real player (React app, /watch/:id): it needs a signed-in session.
+      1. POST /api/auth/refresh with the refresh cookie the app set (cookies belong to "localhost", whatever the port,
+         so logging in at http://localhost:5173 is enough), then pick the first adult profile.
+      2. GET /api/playback/{titleId}: manifest URL + license URL, and the signed cookie that opens /media/<folder>.
+      3. Shaka loads the manifest; the license request carries the profile token (Authorization header).
   -->
   <script src="https://cdn.jsdelivr.net/npm/shaka-player@5.3.3/dist/shaka-player.compiled.js"></script>
   <style>
@@ -28,7 +31,7 @@
 <body>
   <h1><b>HakuTV</b> · player test</h1>
   <form id="f">
-    <input id="name" placeholder="name (vd: sample, sample-clearkey)" size="30" />
+    <input id="title" placeholder="TitleId (vd: 36)" size="16" inputmode="numeric" />
     <select id="format">
       <option value="manifest.mpd">DASH (manifest.mpd)</option>
       <option value="master.m3u8">HLS (master.m3u8) · chỉ bản không mã hóa</option>
@@ -40,6 +43,7 @@
   <video id="video" controls autoplay muted></video>
 
   <div class="grid">
+    <span>Phiên</span><span id="s-session">-</span>
     <span>Manifest</span><span id="s-url">-</span>
     <span>DRM</span><span id="s-drm">-</span>
     <span>Đang phát</span><span id="s-track">-</span>
@@ -48,8 +52,9 @@
   <div id="log"></div>
 
   <script>
-    const LICENSE_URL = '/api/drm/clearkey/license';
     const $ = (id) => document.getElementById(id);
+    let accessToken = null;
+    let licenseUrl = null;
     const log = (msg, isErr) => { const d = document.createElement('div'); d.textContent = msg; if (isErr) d.className = 'err'; $('log').prepend(d); };
 
     shaka.polyfill.installAll();
@@ -57,8 +62,12 @@
     const player = new shaka.Player();
     player.attach(video);
 
-    // Shaka only calls the license server when the content is encrypted, so the same config works for both versions.
-    player.configure({ drm: { servers: { 'org.w3.clearkey': LICENSE_URL } } });
+    // The license endpoint needs the profile token (the media files use the cookie set by /api/playback instead).
+    player.getNetworkingEngine().registerRequestFilter((type, request) => {
+      if (type === shaka.net.NetworkingEngine.RequestType.LICENSE && accessToken) {
+        request.headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+    });
 
     // Show each license request/response in the log so you can see the DRM handshake.
     player.getNetworkingEngine().registerResponseFilter((type, response) => {
@@ -69,8 +78,8 @@
 
     // Plain-language hints for the Shaka error codes you are likely to hit while testing.
     const HINTS = {
-      1001: 'Không tải được file (HTTP lỗi, thường là 404). Kiểm tra tên trong media/packaged và đã chạy package.ps1 chưa.',
-      6007: 'Gọi license server thất bại: API đã tắt, KID không có trong drm.ContentKey, hoặc lỗi mạng.',
+      1001: 'Không tải được file (HTTP lỗi: 404 = thiếu file trong media/packaged, 403 = thiếu cookie /media, hãy tải lại).',
+      6007: 'Gọi license server thất bại: 401 = token hết hạn, 403 = key không thuộc phim này hoặc hồ sơ không được xem, hoặc API đã tắt.',
       6010: 'Nội dung đã mã hóa nhưng manifest không có thông tin DRM. Với ClearKey, playlist HLS không có tag EXT-X-KEY nên player không biết phải hỏi license server. Bản -clearkey hãy chọn DASH.',
       3016: 'Thẻ video báo lỗi khi phát. Với bản -clearkey thường là do key trả về không khớp nội dung (key trong DB sai).',
     };
@@ -97,7 +106,7 @@
       if (s.estimatedBandwidth) $('s-bw').textContent = `${(s.estimatedBandwidth / 1e6).toFixed(2)} Mbps`;
       if (failed) return;
       const ks = player.keySystem();
-      $('s-drm').textContent = ks ? `${ks} (key từ SQL Server qua ${LICENSE_URL})` : 'không mã hóa';
+      $('s-drm').textContent = ks ? `${ks} (key từ SQL Server qua ${licenseUrl})` : 'không mã hóa';
     }, 1000);
 
     function showTrack() {
@@ -123,9 +132,38 @@
       if (t) player.selectVariantTrack(t, /* clearBuffer */ true);
     });
 
-    async function load(name, file) {
-      const url = `/media/${name}/${file}`;
-      $('s-url').textContent = url;
+    async function api(path, init = {}) {
+      const res = await fetch(path, {
+        ...init,
+        headers: { 'content-type': 'application/json', ...(accessToken && { authorization: `Bearer ${accessToken}` }), ...init.headers },
+      });
+      const body = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
+      if (!res.ok) throw new Error(`${path}: ${res.status} ${body?.error ?? body?.code ?? ''}`);
+      return body;
+    }
+
+    // Reuse the app's session: refresh cookie -> account token -> first adult profile -> profile token.
+    async function signIn() {
+      accessToken = null;
+      try {
+        accessToken = (await api('/api/auth/refresh', { method: 'POST', body: '{}' })).accessToken;
+      } catch {
+        throw new Error('Chưa đăng nhập. Hãy đăng nhập ở http://localhost:5173 rồi tải lại trang này.');
+      }
+      const profiles = await api('/api/profiles');
+      const profile = profiles.find((p) => !p.isKids) ?? profiles[0];
+      accessToken = (await api(`/api/profiles/${profile.profileId}/select`, { method: 'POST' })).accessToken;
+      $('s-session').textContent = `hồ sơ "${profile.name}"${profile.isKids ? ' (trẻ em)' : ''}`;
+    }
+
+    async function load(titleId, file) {
+      if (!accessToken) await signIn();
+      const info = await api(`/api/playback/${titleId}`);   // also sets the signed /media cookie
+      licenseUrl = info.drm?.licenseUrl ?? null;
+      player.configure({ drm: { servers: info.drm ? { [info.drm.keySystem]: info.drm.licenseUrl } : {} } });
+
+      const url = file === 'master.m3u8' ? info.manifestUrl.replace('manifest.mpd', 'master.m3u8') : info.manifestUrl;
+      $('s-url').textContent = `${url} (${info.titleName})`;
       $('s-drm').textContent = '-';
       $('s-track').textContent = '-';
       failed = false;
@@ -140,15 +178,15 @@
 
     $('f').addEventListener('submit', (e) => {
       e.preventDefault();
-      const name = $('name').value.trim();
-      if (!name) return;
-      history.replaceState(null, '', `?name=${encodeURIComponent(name)}&format=${encodeURIComponent($('format').value)}`);
-      load(name, $('format').value).catch(reportError);
+      const titleId = $('title').value.trim();
+      if (!/^\d+$/.test(titleId)) return;
+      history.replaceState(null, '', `?title=${titleId}&format=${encodeURIComponent($('format').value)}`);
+      load(titleId, $('format').value).catch(reportError);
     });
 
     const q = new URLSearchParams(location.search);
-    if (q.get('name')) {
-      $('name').value = q.get('name');
+    if (q.get('title')) {
+      $('title').value = q.get('title');
       if (q.get('format')) $('format').value = q.get('format');
       $('f').requestSubmit();
     }

@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useRef } from 'react'
 import shaka from 'shaka-player/dist/shaka-player.ui'
 import 'shaka-player/dist/controls.css'
 import type { PlaybackDrm } from '../features/playback/playbackApi'
+import { getAccessToken } from '../services/http'
 
 interface Props {
   manifestUrl: string
@@ -43,6 +44,16 @@ export default function ShakaPlayer({ manifestUrl, drm, onError }: Props) {
 
     // ClearKey: the player asks the license endpoint for the key of the KID it finds in the segments.
     player.configure({ drm: { servers: keySystem && licenseUrl ? { [keySystem]: licenseUrl } : {} } })
+
+    // The license endpoint only answers a signed-in profile allowed to watch this title: send the access token.
+    // It is read when the request is made, so a token refreshed meanwhile is picked up.
+    // (Manifest and segments need no header: GET /api/playback set a signed cookie for this video's folder.)
+    player.getNetworkingEngine()?.registerRequestFilter((type, request) => {
+      const token = getAccessToken()
+      if (type === shaka.net.NetworkingEngine.RequestType.LICENSE && token) {
+        request.headers['Authorization'] = `Bearer ${token}`
+      }
+    })
 
     player.addEventListener('error', (event) => {
       const detail = (event as unknown as { detail?: { code?: number } }).detail

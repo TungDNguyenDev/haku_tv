@@ -26,9 +26,13 @@ public static class AuthClaims
     public const string ProfileId = "pid";
     public const string MaxMaturityAge = "mat";   // only present for Kids profiles
     public const string Language = "lng";
+    public const string Admin = "adm";            // only present for admin accounts
 
     /// <summary>Policy for endpoints that need a chosen profile (browse, playback), not just a signed-in account.</summary>
     public const string ProfilePolicy = "Profile";
+
+    /// <summary>Admin account, and not currently acting as a Kids profile.</summary>
+    public const string AdminPolicy = "Admin";
 }
 
 public static class ClaimsPrincipalExtensions
@@ -41,6 +45,8 @@ public static class ClaimsPrincipalExtensions
 
     public static byte? MaxMaturityAge(this ClaimsPrincipal user) =>
         byte.TryParse(user.FindFirstValue(AuthClaims.MaxMaturityAge), out var age) ? age : null;
+
+    public static bool IsAdmin(this ClaimsPrincipal user) => user.HasClaim(AuthClaims.Admin, "1");
 }
 
 public sealed record AccessToken(string Token, DateTime ExpiresAt);
@@ -66,12 +72,13 @@ public sealed class TokenService(JwtOptions options, TimeProvider clock)
     /// Short-lived (15 min) access token. Without a profile it only allows account-level calls (list / pick profiles);
     /// with one it also carries what browse and playback need (profile id, maturity limit, language).
     /// </summary>
-    public AccessToken CreateAccessToken(int accountId, Profile? profile)
+    public AccessToken CreateAccessToken(int accountId, bool isAdmin, Profile? profile)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         var expires = now.AddMinutes(options.AccessTokenMinutes);
 
         var claims = new Dictionary<string, object> { [AuthClaims.AccountId] = accountId.ToString() };
+        if (isAdmin) claims[AuthClaims.Admin] = "1";
         if (profile is not null)
         {
             claims[AuthClaims.ProfileId] = profile.ProfileId.ToString();

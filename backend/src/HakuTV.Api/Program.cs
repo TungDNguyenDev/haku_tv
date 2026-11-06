@@ -7,8 +7,10 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 using HakuTV.Api.Auth;
 using HakuTV.Api.Controllers;
+using HakuTV.Api.Infrastructure;
 using HakuTV.Api.Media;
 using HakuTV.Core.Identity;
+using HakuTV.Core.Media;
 using HakuTV.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -54,6 +56,11 @@ var tokenService = new TokenService(jwt, TimeProvider.System);
 builder.Services.AddSingleton(jwt);
 builder.Services.AddSingleton(tokenService);
 builder.Services.AddSingleton<IPasswordHasher<AccountLogin>, PasswordHasher<AccountLogin>>();
+// Signed /media cookies use a key derived from the JWT key (one secret to manage, two independent keys).
+builder.Services.AddSingleton(new MediaAccessSigner(jwt.SigningKey));
+builder.Services.AddHostedService<RefreshTokenCleanup>();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -64,7 +71,10 @@ builder.Services
     });
 
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy(AuthClaims.ProfilePolicy, p => p.RequireAuthenticatedUser().RequireClaim(AuthClaims.ProfileId));
+    .AddPolicy(AuthClaims.ProfilePolicy, p => p.RequireAuthenticatedUser().RequireClaim(AuthClaims.ProfileId))
+    .AddPolicy(AuthClaims.AdminPolicy, p => p.RequireAuthenticatedUser()
+        .RequireClaim(AuthClaims.Admin, "1")
+        .RequireAssertion(ctx => !ctx.User.HasClaim(c => c.Type == AuthClaims.MaxMaturityAge)));   // not while on a Kids profile
 
 // Brute-force brake on login/register: 10 attempts per minute per IP (the per-account lockout is in SQL).
 builder.Services.AddRateLimiter(o =>
@@ -84,6 +94,9 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 
 var app = builder.Build();
 
+// Unhandled exceptions -> logged + small JSON body (ApiExceptionHandler). First, so it wraps everything below.
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -96,14 +109,15 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 
-// Serve packaged video at /media.
-// Phase 6 puts an auth check in front of this; the DRM license endpoint protects the keys.
+// Serve packaged video at /media, but only with the signed cookie GET /api/playback/{titleId} sets for that folder.
+// Keys stay behind the license endpoint (profile token + right to watch the title).
 var contentTypes = new FileExtensionContentTypeProvider();
 contentTypes.Mappings[".mpd"] = "application/dash+xml";
 contentTypes.Mappings[".m3u8"] = "application/vnd.apple.mpegurl";
 contentTypes.Mappings[".m4s"] = "video/iso.segment";
 contentTypes.Mappings[".vtt"] = "text/vtt";
 
+app.UseMiddleware<MediaAccessMiddleware>();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(media.PackagedRoot),

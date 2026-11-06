@@ -5,6 +5,7 @@ export interface AuthState {
   // unknown = app just started, checking the refresh cookie; anonymous = must log in.
   status: 'unknown' | 'anonymous' | 'authenticated'
   accountId: number | null
+  isAdmin: boolean // admin account (the admin area stays hidden while a Kids profile is active)
   accessToken: string | null
   expiresAt: string | null
   profile: Profile | null // the "who's watching" choice; null = account-level token only
@@ -14,6 +15,7 @@ export interface AuthState {
 const initialState: AuthState = {
   status: 'unknown',
   accountId: null,
+  isAdmin: false,
   accessToken: null,
   expiresAt: null,
   profile: null,
@@ -23,6 +25,7 @@ const initialState: AuthState = {
 function applyTokens(state: AuthState, res: AuthResponse) {
   state.status = 'authenticated'
   state.accountId = res.accountId
+  state.isAdmin = res.isAdmin
   state.accessToken = res.accessToken
   state.expiresAt = res.expiresAt
   state.profile = res.profile
@@ -73,6 +76,9 @@ const authSlice = createSlice({
     },
   },
 })
+
+/** The admin link and /admin: admin accounts only, and never while a Kids profile is active. */
+export const selectCanAdmin = (s: { auth: AuthState }): boolean => s.auth.isAdmin && !s.auth.profile?.isKids
 
 /** Catalog language of the current profile (Vietnamese until a profile is chosen). */
 export const selectLanguage = (s: { auth: AuthState }): 'vi' | 'en' => s.auth.profile?.languageCode ?? 'vi'

@@ -23,7 +23,7 @@ END;
 GO
 
 /*
-    Exchanges a refresh token for a new one (rotation). Returns one row (Status, AccountId):
+    Exchanges a refresh token for a new one (rotation). Returns one row (Status, AccountId, IsAdmin; IsAdmin only meaningful for ok):
 
       ok       the old token is revoked and points to the new one; the new one is stored in the same family
       invalid  unknown token
@@ -63,7 +63,7 @@ BEGIN
     IF @Id IS NULL
     BEGIN
         COMMIT TRANSACTION;
-        SELECT 'invalid' AS Status, CAST(NULL AS int) AS AccountId;
+        SELECT 'invalid' AS Status, CAST(NULL AS int) AS AccountId, CAST(0 AS bit) AS IsAdmin;
         RETURN;
     END;
 
@@ -72,7 +72,7 @@ BEGIN
         IF DATEDIFF(SECOND, @RevokedAt, @Now) < @GraceSeconds
         BEGIN
             COMMIT TRANSACTION;
-            SELECT 'stale' AS Status, @AccountId AS AccountId;
+            SELECT 'stale' AS Status, @AccountId AS AccountId, CAST(0 AS bit) AS IsAdmin;
             RETURN;
         END;
 
@@ -81,7 +81,7 @@ BEGIN
         WHERE  FamilyId = @FamilyId AND RevokedAt IS NULL;     -- seek on IX_RefreshToken_Family
 
         COMMIT TRANSACTION;
-        SELECT 'reused' AS Status, @AccountId AS AccountId;
+        SELECT 'reused' AS Status, @AccountId AS AccountId, CAST(0 AS bit) AS IsAdmin;
         RETURN;
     END;
 
@@ -89,7 +89,7 @@ BEGIN
     BEGIN
         UPDATE [identity].RefreshToken SET RevokedAt = @Now WHERE RefreshTokenId = @Id;
         COMMIT TRANSACTION;
-        SELECT 'expired' AS Status, @AccountId AS AccountId;
+        SELECT 'expired' AS Status, @AccountId AS AccountId, CAST(0 AS bit) AS IsAdmin;
         RETURN;
     END;
 
@@ -102,7 +102,44 @@ BEGIN
 
     COMMIT TRANSACTION;
 
-    SELECT 'ok' AS Status, @AccountId AS AccountId;
+    -- IsAdmin is read fresh on every refresh, so granting or removing admin takes effect within one access-token lifetime.
+    SELECT 'ok' AS Status, @AccountId AS AccountId, a.IsAdmin
+    FROM   [identity].Account AS a
+    WHERE  a.AccountId = @AccountId;
+END;
+GO
+
+/*
+    Deletes refresh tokens that expired more than @RetentionDays ago, in batches.
+
+    Why keep them a few days after expiry: a revoked token that comes back is how reuse (theft) is detected
+    (see usp_RefreshToken_Rotate). Once deleted, a stolen copy only gets "invalid" instead of revoking its family.
+    Why batches: one huge DELETE holds locks (and grows the log) for its whole duration; small batches let logins
+    and refreshes interleave. IX_RefreshToken_ExpiresAt (migration 0007) makes each batch a range seek.
+
+    Called by the API every few hours (RefreshTokenCleanup background service). Returns the number of rows deleted.
+*/
+CREATE OR ALTER PROCEDURE [identity].usp_RefreshToken_Purge
+    @RetentionDays int = 7,
+    @BatchSize     int = 5000
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @Cutoff datetime2(0) = DATEADD(DAY, -@RetentionDays, SYSUTCDATETIME());
+    DECLARE @Deleted int = 0, @Batch int = 1;
+
+    WHILE @Batch > 0
+    BEGIN
+        DELETE TOP (@BatchSize)
+        FROM   [identity].RefreshToken
+        WHERE  ExpiresAt < @Cutoff;
+
+        SET @Batch = @@ROWCOUNT;
+        SET @Deleted += @Batch;
+    END;
+
+    SELECT @Deleted AS Deleted;
 END;
 GO
 

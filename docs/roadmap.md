@@ -31,6 +31,8 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
   JWT 15 phút + refresh token 30 ngày trong cookie HttpOnly (xoay vòng, phát hiện token bị đánh cắp), tối đa 5 hồ sơ, hồ sơ trẻ em (≤ 12 tuổi),
   ngôn ngữ theo hồ sơ. Browse/playback bắt buộc đã chọn hồ sơ; hồ sơ trẻ em bị chặn phát phim vượt độ tuổi (403).
   Chi tiết thiết kế: [erd.md](erd.md#đăng-nhập-và-hồ-sơ-schema-identity-giai-đoạn-3).
+- **Gia cố bảo mật sau Giai đoạn 3: xong.** License DRM theo quyền xem từng phim, `/media` bằng cookie ký, cờ admin,
+  dọn refresh token định kỳ, xử lý lỗi chung (xem "Các quyết định đã chốt" bên dưới).
 
 ## Các quyết định đã chốt
 
@@ -39,8 +41,18 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
 - **Dapper + Stored Procedure** để truy cập dữ liệu, **DbUp** cho migration (file `.sql` có số thứ tự trong `database/migrations`).
 - **Video**: ffmpeg (encode) → Shaka Packager (CMAF, DASH + HLS, mã hóa CENC) → Shaka Player.
 - **DRM**: ClearKey trước, Widevine thật để sau. Key lưu trong SQL Server (`drm.ContentKey`, kiểu `binary(16)`).
-  `POST /api/drm/clearkey/license` đọc key qua `drm.usp_ContentKey_GetByKeyIds` (truyền danh sách KID bằng table-valued parameter).
-  Ở Giai đoạn 0 endpoint này **chưa có auth**. Giai đoạn 6 sẽ thêm kiểm tra JWT và quyền xem.
+  `POST /api/drm/clearkey/license?titleId=..` cần token đã chọn hồ sơ và chỉ trả key qua `drm.usp_ContentKey_GetForPlayback`
+  (danh sách KID truyền bằng table-valued parameter) khi key đó thuộc đúng phim trong URL **và** hồ sơ được phép xem phim đó.
+  Sai bất kỳ điều kiện nào đều trả cùng một lỗi 403, không lộ key nào tồn tại. (Làm sớm thay vì đợi Giai đoạn 6.)
+- **File video `/media`**: chỉ mở với cookie ký HMAC mà `GET /api/playback/{titleId}` cấp sau khi kiểm tra quyền, cùng ý tưởng với
+  "signed cookies" của CDN (CloudFront). Cookie gắn với đúng một thư mục video (`Path=/media/<thư mục>`, thư mục nằm trong phần được ký),
+  sống 6 giờ, kiểm tra chỉ tốn một phép HMAC (không gọi DB) nên không làm chậm hàng trăm request segment.
+- **Admin**: cột `identity.Account.IsAdmin` (bật tay bằng SQL), claim `adm` trong token, policy `Admin` ở API.
+  Hồ sơ trẻ em không bao giờ thấy hay vào được trang quản trị, kể cả trên tài khoản admin.
+- **Dọn refresh token**: `identity.usp_RefreshToken_Purge` xóa theo lô các token đã hết hạn quá 7 ngày, chạy mỗi 6 giờ bằng
+  background service trong API (Express không có SQL Agent; khi có Hangfire ở Giai đoạn 8 thì chuyển sang đó).
+- **Lỗi không lường trước**: `ApiExceptionHandler` ghi log đầy đủ và trả JSON gọn `{ code, error, traceId }`, không lộ stack trace
+  hay câu SQL (mất kết nối DB thì trả 503 `db-unavailable`).
 - **Database**: `database/migrations` chạy đúng một lần mỗi file (DbUp có ghi nhận các file đã chạy).
   `database/programmability` (SP/view/function viết dạng `CREATE OR ALTER`) chạy lại mỗi lần chạy DbMigrator, nên sửa SP chỉ cần sửa file rồi chạy lại.
 - **Không dùng server phụ**: API .NET serve luôn video (`/media`) và các trang dev (`/dev/...`, chỉ bật ở môi trường Development).

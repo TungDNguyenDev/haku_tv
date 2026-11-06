@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAppSelector } from '../app/hooks'
+import { selectCanAdmin } from '../features/auth/authSlice'
 
 /*
   Route guards. The order of the gates mirrors the product flow:
@@ -36,6 +37,20 @@ export function RequireProfile({ children }: { children: ReactNode }) {
   if (status === 'unknown') return <SplashScreen />
   if (status === 'anonymous') return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
   if (!profile) return <Navigate to="/profiles" replace state={{ from: location.pathname + location.search }} />
+  return children
+}
+
+/**
+ * Admin area: admin accounts only, and not while a Kids profile is active. Hiding the link is only cosmetic;
+ * the real check is the API's "Admin" policy on every admin endpoint (Phase 8).
+ */
+export function RequireAdmin({ children }: { children: ReactNode }) {
+  const status = useAppSelector((s) => s.auth.status)
+  const canAdmin = useAppSelector(selectCanAdmin)
+  const location = useLocation()
+  if (status === 'unknown') return <SplashScreen />
+  if (status === 'anonymous') return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (!canAdmin) return <Navigate to="/browse" replace />
   return children
 }
 

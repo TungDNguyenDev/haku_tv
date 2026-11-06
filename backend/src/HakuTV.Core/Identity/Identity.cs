@@ -22,6 +22,9 @@ public interface IRefreshTokenRepository
         CancellationToken ct = default);
 
     Task RevokeFamilyAsync(byte[] tokenHash, CancellationToken ct = default);
+
+    /// <summary>Deletes tokens that expired more than <paramref name="retentionDays"/> days ago. Returns the count.</summary>
+    Task<int> PurgeExpiredAsync(int retentionDays, CancellationToken ct = default);
 }
 
 public interface IProfileRepository
@@ -39,6 +42,7 @@ public sealed class AccountLogin
     public string Email { get; init; } = "";
     public string PasswordHash { get; init; } = "";
     public DateTime? LockoutUntil { get; init; }
+    public bool IsAdmin { get; init; }
 }
 
 public sealed class Profile
@@ -55,7 +59,7 @@ public sealed record ProfileInput(string Name, bool IsKids, string AvatarKey, st
 
 public enum RefreshStatus { Ok, Invalid, Expired, Stale, Reused }
 
-public sealed record RefreshResult(RefreshStatus Status, int? AccountId);
+public sealed record RefreshResult(RefreshStatus Status, int? AccountId, bool IsAdmin = false);
 
 /// <summary>Business rules enforced by the identity procs (THROW 5002x / 5003x).</summary>
 public enum IdentityError { EmailTaken, ProfileLimit, ProfileNameTaken, ProfileNotFound, LastProfile }

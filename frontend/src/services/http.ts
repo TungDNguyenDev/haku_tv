@@ -18,6 +18,11 @@ export function setAccessToken(token: string | null) {
   accessToken = token
 }
 
+/** For requests that do not go through axios (Shaka's license request). */
+export function getAccessToken(): string | null {
+  return accessToken
+}
+
 export function setRefreshHandler(handler: () => Promise<string | null>) {
   refreshHandler = handler
 }

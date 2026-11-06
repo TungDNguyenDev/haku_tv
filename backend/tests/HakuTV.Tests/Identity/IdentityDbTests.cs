@@ -146,6 +146,43 @@ public sealed class IdentityDbTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Refresh_reports_the_admin_flag_read_from_the_database()
+    {
+        var (accountId, _) = await _accounts.RegisterAsync(_email, "h", "A", "vi");
+        var expires = DateTime.UtcNow.AddDays(1);
+        var t1 = NewHash();
+        await _tokens.IssueAsync(accountId, t1, expires, "test");
+
+        var t2 = NewHash();
+        Assert.False((await _tokens.RotateAsync(t1, t2, expires, "test")).IsAdmin);
+        Assert.False((await _accounts.GetForLoginAsync(_email))!.IsAdmin);
+
+        await using (var conn = new SqlConnection(ConnectionString))
+            await conn.ExecuteAsync("UPDATE [identity].Account SET IsAdmin = 1 WHERE AccountId = @accountId", new { accountId });
+
+        Assert.True((await _tokens.RotateAsync(t2, NewHash(), expires, "test")).IsAdmin);   // next refresh picks it up
+        Assert.True((await _accounts.GetForLoginAsync(_email))!.IsAdmin);
+    }
+
+    [Fact]
+    public async Task Purge_deletes_tokens_expired_beyond_the_retention_only()
+    {
+        var (accountId, _) = await _accounts.RegisterAsync(_email, "h", "A", "vi");
+        var old = NewHash();
+        var recent = NewHash();
+        await _tokens.IssueAsync(accountId, old, DateTime.UtcNow.AddDays(-10), "test");     // expired 10 days ago
+        await _tokens.IssueAsync(accountId, recent, DateTime.UtcNow.AddDays(-2), "test");   // expired 2 days ago: kept
+
+        Assert.True(await _tokens.PurgeExpiredAsync(retentionDays: 7) >= 1);
+
+        await using var conn = new SqlConnection(ConnectionString);
+        var left = (await conn.QueryAsync<byte[]>("SELECT TokenHash FROM [identity].RefreshToken WHERE AccountId = @accountId",
+            new { accountId })).ToList();
+        Assert.DoesNotContain(left, h => h.SequenceEqual(old));
+        Assert.Contains(left, h => h.SequenceEqual(recent));
+    }
+
+    [Fact]
     public async Task Expired_token_is_refused_and_logout_revokes_the_family()
     {
         var (accountId, _) = await _accounts.RegisterAsync(_email, "h", "A", "vi");

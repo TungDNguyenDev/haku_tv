@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { GuestOnly, RequireProfile, RequireSession } from './components/routing'
+import { GuestOnly, RequireAdmin, RequireProfile, RequireSession } from './components/routing'
 import AuthPage from './pages/AuthPage'
 import BrowsePage from './pages/BrowsePage'
 import ProfilesPage from './pages/ProfilesPage'
@@ -20,8 +20,8 @@ export default function App() {
           <Route path="/profiles" element={<RequireSession><ProfilesPage /></RequireSession>} />
           <Route path="/browse" element={<RequireProfile><BrowsePage /></RequireProfile>} />
           <Route path="/watch/:titleId" element={<RequireProfile><WatchPage /></RequireProfile>} />
-          {/* Admin roles come with Phase 8; for now any signed-in account can open the placeholder. */}
-          <Route path="/admin/*" element={<RequireSession><AdminPage /></RequireSession>} />
+          {/* Admin accounts only (identity.Account.IsAdmin), never on a Kids profile. */}
+          <Route path="/admin/*" element={<RequireAdmin><AdminPage /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/browse" replace />} />
         </Routes>
       </Suspense>

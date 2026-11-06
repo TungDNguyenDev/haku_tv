@@ -82,7 +82,7 @@ public sealed class RefreshTokenRepository(ISqlConnectionFactory db) : IRefreshT
         CancellationToken ct = default)
     {
         await using var conn = await db.OpenAsync(ct);
-        var row = await conn.QuerySingleAsync<(string Status, int? AccountId)>(new CommandDefinition(
+        var row = await conn.QuerySingleAsync<(string Status, int? AccountId, bool IsAdmin)>(new CommandDefinition(
             "[identity].usp_RefreshToken_Rotate",
             new { TokenHash = tokenHash, NewTokenHash = newTokenHash, NewExpiresAt = newExpiresAt, UserAgent = Truncate(userAgent) },
             commandType: CommandType.StoredProcedure, cancellationToken: ct));
@@ -95,7 +95,7 @@ public sealed class RefreshTokenRepository(ISqlConnectionFactory db) : IRefreshT
             "reused" => RefreshStatus.Reused,
             _ => RefreshStatus.Invalid,
         };
-        return new RefreshResult(status, row.AccountId);
+        return new RefreshResult(status, row.AccountId, row.IsAdmin);
     }
 
     public async Task RevokeFamilyAsync(byte[] tokenHash, CancellationToken ct = default)
@@ -104,6 +104,14 @@ public sealed class RefreshTokenRepository(ISqlConnectionFactory db) : IRefreshT
         await conn.ExecuteAsync(new CommandDefinition(
             "[identity].usp_RefreshToken_RevokeFamily", new { TokenHash = tokenHash },
             commandType: CommandType.StoredProcedure, cancellationToken: ct));
+    }
+
+    public async Task<int> PurgeExpiredAsync(int retentionDays, CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenAsync(ct);
+        return await conn.QuerySingleAsync<int>(new CommandDefinition(
+            "[identity].usp_RefreshToken_Purge", new { RetentionDays = retentionDays },
+            commandType: CommandType.StoredProcedure, commandTimeout: 300, cancellationToken: ct));
     }
 
     private static string? Truncate(string? value) => value is { Length: > 200 } ? value[..200] : value;

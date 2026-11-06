@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
-import { logoutRequested } from '../features/auth/authSlice'
+import { logoutRequested, selectCanAdmin } from '../features/auth/authSlice'
 import { profileSelectRequested, profilesRequested } from '../features/profiles/profilesSlice'
 import Avatar from './Avatar'
 import { ChevronDownIcon } from './icons'
@@ -47,6 +47,7 @@ function ProfileMenu() {
   const navigate = useNavigate()
   const profile = useAppSelector((s) => s.auth.profile)!
   const { items, selectingId } = useAppSelector((s) => s.profiles)
+  const canAdmin = useAppSelector(selectCanAdmin)
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
@@ -128,9 +129,11 @@ function ProfileMenu() {
           >
             Quản lý hồ sơ
           </button>
-          <Link to="/admin" role="menuitem" className="block px-4 py-1.5 hover:underline">
-            Trang quản trị
-          </Link>
+          {canAdmin && (
+            <Link to="/admin" role="menuitem" className="block px-4 py-1.5 hover:underline">
+              Trang quản trị
+            </Link>
+          )}
           <hr className="my-2 border-white/15" />
           <button
             type="button"

@@ -57,6 +57,12 @@ Khóa ký JWT: nếu chưa đặt, API tự sinh khóa ngẫu nhiên mỗi lần
 dotnet user-secrets set "Jwt:SigningKey" "<chuỗi ngẫu nhiên từ 48 ký tự>" --project backend/src/HakuTV.Api
 ```
 
+Cấp quyền admin cho một tài khoản (để thấy "Trang quản trị"), rồi tải lại trang web:
+
+```sql
+UPDATE [identity].Account SET IsAdmin = 1 WHERE Email = N'email-cua-ban@example.com';
+```
+
 ## Nhập dữ liệu phim từ TMDB (Giai đoạn 1)
 
 ```powershell
@@ -100,7 +106,10 @@ sqlcmd -S .\SQLEXPRESS -d HakuTV -E -C -I -b -i database\tests\catalog_smoke_tes
 .\tools\package.ps1 -Name sintel -ClearKey                  # bản mã hóa   -> media/packaged/sintel-clearkey, key -> drm.ContentKey
 ```
 
-Sau đó chạy API rồi mở `http://localhost:5080/dev/player-test/?name=sintel-clearkey`.
+Gắn video vào một phim (hoặc chạy `database/dev/attach_sample_video.sql` cho video mẫu), rồi:
+1. Đăng nhập ở http://localhost:5173 (trang test dùng chung phiên đăng nhập: cookie theo `localhost`, không phân biệt cổng).
+2. Mở `http://localhost:5080/dev/player-test/?title=<TitleId>`. Trang tự chọn hồ sơ người lớn đầu tiên, gọi `/api/playback`
+   (nhận cookie mở `/media/<thư mục>`), rồi phát với license có kèm token.
 
 Kiểm tra trên trang test player:
 - Bản thường và bản `-clearkey` đều phát được. Log trên trang hiện request/response license (giá trị key đã được che).

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HakuTV.Api.Auth;
 using HakuTV.Core.Drm;
 
 namespace HakuTV.Api.Controllers;
@@ -9,18 +11,21 @@ namespace HakuTV.Api.Controllers;
 /// W3C ClearKey license server.
 ///
 /// Flow: the browser finds the KID in the encrypted segments → the EME CDM builds a license request
-/// {"kids":["&lt;base64url KID&gt;"],"type":"temporary"} → Shaka Player POSTs it here →
+/// {"kids":["&lt;base64url KID&gt;"],"type":"temporary"} → Shaka Player POSTs it here (with the profile's access token
+/// in the Authorization header and the title in the URL, both set by the playback endpoint / player) →
 /// we answer with a JWK set {"keys":[{"kty":"oct","kid":"...","k":"&lt;base64url key&gt;"}]} → the CDM decrypts.
 ///
-/// Phase 0: NO AUTH, any local caller gets any key. Phase 6 adds the real checks here:
-/// a valid JWT, an active profile, and the right to watch the title the KID belongs to.
+/// A key is only returned when it belongs to the title in the URL and the profile may watch that title
+/// (drm.usp_ContentKey_GetForPlayback). Knowing a KID is not enough: KIDs are written in the clear in every segment.
 /// </summary>
 [ApiController]
+[Authorize(Policy = AuthClaims.ProfilePolicy)]
 [Route("api/drm")]
 public sealed class DrmController(IContentKeyRepository keys, ILogger<DrmController> logger) : ControllerBase
 {
+    /// <summary>POST /api/drm/clearkey/license?titleId=12&amp;episodeId=34 (the URL comes from GET /api/playback/{titleId}).</summary>
     [HttpPost("clearkey/license")]
-    public async Task<IActionResult> ClearKeyLicense(CancellationToken ct)
+    public async Task<IActionResult> ClearKeyLicense([FromQuery] int titleId, [FromQuery] int? episodeId, CancellationToken ct)
     {
         // The player sends the CDM's raw message bytes (JSON) with Content-Type application/octet-stream,
         // so read the body directly instead of relying on [FromBody] model binding.
@@ -34,8 +39,8 @@ public sealed class DrmController(IContentKeyRepository keys, ILogger<DrmControl
             return BadRequest(new { error = "Body is not a ClearKey license request." });
         }
 
-        if (request?.Kids is not { Length: > 0 })
-            return BadRequest(new { error = "No kids in the license request." });
+        if (request?.Kids is not { Length: > 0 and <= 16 })
+            return BadRequest(new { error = "A license request needs 1 to 16 kids." });
 
         byte[][] keyIds;
         try
@@ -49,11 +54,14 @@ public sealed class DrmController(IContentKeyRepository keys, ILogger<DrmControl
         if (keyIds.Any(k => k.Length != 16))
             return BadRequest(new { error = "A kid must be 16 bytes." });
 
-        var found = await keys.GetByKeyIdsAsync(keyIds, ct);
-        logger.LogInformation("ClearKey license: requested {Requested} kid(s), returned {Found}", keyIds.Length, found.Count);
+        var found = await keys.GetForPlaybackAsync(keyIds, titleId, episodeId, User.MaxMaturityAge(), ct);
+        logger.LogInformation("ClearKey license: profile {ProfileId}, title {TitleId}: requested {Requested} kid(s), returned {Found}",
+            User.ProfileId(), titleId, keyIds.Length, found.Count);
 
+        // Same answer for "unknown kid", "kid of another title" and "title not allowed for this profile":
+        // the caller learns nothing about which keys exist.
         if (found.Count == 0)
-            return NotFound(new { error = "No key for the requested kid(s)." });
+            return StatusCode(StatusCodes.Status403Forbidden, new { code = "no-license", error = "No license for this title." });
 
         return Ok(new ClearKeyResponse(
             found.Select(k => new Jwk("oct", Base64Url.Encode(k.KeyId), Base64Url.Encode(k.KeyValue))).ToArray(),

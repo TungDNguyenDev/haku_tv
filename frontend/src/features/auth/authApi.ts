@@ -15,6 +15,7 @@ export interface AuthResponse {
   accessToken: string
   expiresAt: string // ISO UTC
   accountId: number
+  isAdmin: boolean
   profile: Profile | null
 }
 

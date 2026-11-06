@@ -5,6 +5,10 @@ public sealed record ContentKey(byte[] KeyId, byte[] KeyValue);
 
 public interface IContentKeyRepository
 {
-    /// <summary>Returns the keys for the given KIDs; unknown KIDs are left out.</summary>
-    Task<IReadOnlyList<ContentKey>> GetByKeyIdsAsync(IReadOnlyCollection<byte[]> keyIds, CancellationToken ct = default);
+    /// <summary>
+    /// Keys for the requested KIDs, limited to the keys of <paramref name="titleId"/> (and episode) and only when the
+    /// profile may watch that title (drm.usp_ContentKey_GetForPlayback). Anything else is left out.
+    /// </summary>
+    Task<IReadOnlyList<ContentKey>> GetForPlaybackAsync(IReadOnlyCollection<byte[]> keyIds, int titleId, int? episodeId,
+        byte? maxMaturityAge, CancellationToken ct = default);
 }

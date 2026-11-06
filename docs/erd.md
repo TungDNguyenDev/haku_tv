@@ -189,3 +189,10 @@ và tài khoản khác không bị chặn.
 
 **Access token** (JWT, 15 phút) có `sub` (tài khoản). Sau khi chọn hồ sơ thì có thêm `pid`, `lng`, và `mat` (= 12 với hồ sơ trẻ em).
 Browse và playback yêu cầu có `pid` (policy `Profile`) và lấy giới hạn độ tuổi từ `mat`, nên hồ sơ trẻ em không thể sửa URL để xem phim người lớn.
+## Gia cố bảo mật (migration 0007)
+
+| Thay đổi | Lý do |
+|---|---|
+| `identity.Account.IsAdmin bit` | ai được vào trang quản trị; đọc lại từ DB ở mỗi lần refresh token nên cấp/thu quyền có hiệu lực trong vòng 15 phút |
+| `IX_RefreshToken_ExpiresAt` | `usp_RefreshToken_Purge` xóa theo lô `DELETE TOP (n) ... WHERE ExpiresAt < @Cutoff`: có index thì mỗi lô là một range seek, không quét cả bảng trong lúc giữ khóa |
+| `drm.usp_ContentKey_GetForPlayback` thay `GetByKeyIds` | key chỉ được trả khi `EXISTS` một `VideoAsset` của đúng phim dùng key đó và phim nằm trong giới hạn tuổi của hồ sơ; seek `UQ_ContentKey_KeyId` → `IX_VideoAsset_ContentKey` → PK `Title` |

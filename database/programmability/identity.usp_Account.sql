@@ -47,7 +47,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT a.AccountId, a.Email, a.PasswordHash, a.LockoutUntil
+    SELECT a.AccountId, a.Email, a.PasswordHash, a.LockoutUntil, a.IsAdmin
     FROM   [identity].Account AS a
     WHERE  a.Email = @Email;          -- seek on UQ_Account_Email
 END;

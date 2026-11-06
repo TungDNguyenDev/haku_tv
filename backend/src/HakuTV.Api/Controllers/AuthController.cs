@@ -56,7 +56,7 @@ public sealed class AuthController(
             return Conflict(new ApiError("email-taken", "Email này đã được đăng ký."));
         }
 
-        return await SignInAsync(accountId, ct);
+        return await SignInAsync(accountId, isAdmin: false, ct);
     }
 
     [HttpPost("login")]
@@ -87,7 +87,7 @@ public sealed class AuthController(
         var rehash = result == PasswordVerificationResult.SuccessRehashNeeded ? hasher.HashPassword(account, request.Password!) : null;
         await accounts.RecordLoginAsync(account.AccountId, succeeded: true, rehash, ct);
 
-        return await SignInAsync(account.AccountId, ct);
+        return await SignInAsync(account.AccountId, account.IsAdmin, ct);
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public sealed class AuthController(
             case RefreshStatus.Ok:
                 SetRefreshCookie(next);
                 var profile = request?.ProfileId is { } pid ? await profiles.GetAsync(result.AccountId!.Value, pid, ct) : null;
-                return Ok(AuthResult(result.AccountId!.Value, profile));
+                return Ok(AuthResult(result.AccountId!.Value, result.IsAdmin, profile));
 
             case RefreshStatus.Stale:
                 // Another tab rotated this cookie a moment ago; by the time the client retries it holds the new one.
@@ -133,18 +133,18 @@ public sealed class AuthController(
 
     // ---------- helpers ----------
 
-    private async Task<ActionResult<AuthResponse>> SignInAsync(int accountId, CancellationToken ct)
+    private async Task<ActionResult<AuthResponse>> SignInAsync(int accountId, bool isAdmin, CancellationToken ct)
     {
         var refresh = tokens.CreateRefreshToken();
         await refreshTokens.IssueAsync(accountId, refresh.Hash, refresh.ExpiresAt, UserAgent, familyId: null, ct);
         SetRefreshCookie(refresh);
-        return Ok(AuthResult(accountId, profile: null));     // the user picks a profile next
+        return Ok(AuthResult(accountId, isAdmin, profile: null));     // the user picks a profile next
     }
 
-    private AuthResponse AuthResult(int accountId, Profile? profile)
+    private AuthResponse AuthResult(int accountId, bool isAdmin, Profile? profile)
     {
-        var access = tokens.CreateAccessToken(accountId, profile);
-        return new AuthResponse(access.Token, access.ExpiresAt, accountId, profile is null ? null : ProfileDto.From(profile));
+        var access = tokens.CreateAccessToken(accountId, isAdmin, profile);
+        return new AuthResponse(access.Token, access.ExpiresAt, accountId, isAdmin, profile is null ? null : ProfileDto.From(profile));
     }
 
     private void SetRefreshCookie(RefreshToken token) =>
@@ -184,7 +184,7 @@ public sealed record RegisterRequest(string? Email, string? Password, string? Pr
 public sealed record LoginRequest(string? Email, string? Password);
 public sealed record RefreshRequest(int? ProfileId);
 
-public sealed record AuthResponse(string AccessToken, DateTime ExpiresAt, int AccountId, ProfileDto? Profile);
+public sealed record AuthResponse(string AccessToken, DateTime ExpiresAt, int AccountId, bool IsAdmin, ProfileDto? Profile);
 
 public sealed record ProfileDto(int ProfileId, string Name, bool IsKids, string AvatarKey, string LanguageCode)
 {

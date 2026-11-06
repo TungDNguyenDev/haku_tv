@@ -69,8 +69,9 @@ public sealed class ProfilesController(IProfileRepository profiles, TokenService
         var profile = await profiles.GetAsync(accountId, profileId, ct);
         if (profile is null) return NotFound(new ApiError("profile-not-found", "Không tìm thấy hồ sơ."));
 
-        var access = tokens.CreateAccessToken(accountId, profile);
-        return new AuthResponse(access.Token, access.ExpiresAt, accountId, ProfileDto.From(profile));
+        // Admin status is carried over from the current token; every token refresh re-reads it from the database.
+        var access = tokens.CreateAccessToken(accountId, User.IsAdmin(), profile);
+        return new AuthResponse(access.Token, access.ExpiresAt, accountId, User.IsAdmin(), ProfileDto.From(profile));
     }
 
     // ---------- helpers ----------
