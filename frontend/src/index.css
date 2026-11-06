@@ -19,3 +19,33 @@ body,
 body {
   @apply bg-surface text-white antialiased;
 }
+
+/* Hover preview card (components/browse/HoverPreview.tsx) grows out of the hovered card. */
+@keyframes preview-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.preview-in {
+  animation: preview-in 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-in {
+    animation: none;
+  }
+}
+
+/* Rows scroll horizontally without a visible scrollbar (arrows + touch/trackpad instead). */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

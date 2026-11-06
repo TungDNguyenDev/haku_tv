@@ -1,9 +1,13 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using HakuTV.Core.Abstractions;
+using HakuTV.Core.Catalog;
 using HakuTV.Core.Drm;
+using HakuTV.Core.Media;
+using HakuTV.Infrastructure.Catalog;
 using HakuTV.Infrastructure.Data;
 using HakuTV.Infrastructure.Drm;
+using HakuTV.Infrastructure.Media;
 
 namespace HakuTV.Infrastructure;
 
@@ -16,6 +20,8 @@ public static class DependencyInjection
 
         services.AddSingleton<ISqlConnectionFactory>(new SqlConnectionFactory(connectionString));
         services.AddScoped<IContentKeyRepository, ContentKeyRepository>();
+        services.AddScoped<ICatalogQueries, CatalogQueries>();
+        services.AddScoped<IPlaybackRepository, PlaybackRepository>();
         return services;
     }
 }

@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\HakuTV.Core\HakuTV.Core.csproj" />
+    <ProjectReference Include="..\..\src\HakuTV.Infrastructure\HakuTV.Infrastructure.csproj" />
     <ProjectReference Include="..\..\tools\HakuTV.Seeder\HakuTV.Seeder.csproj" />
   </ItemGroup>
 

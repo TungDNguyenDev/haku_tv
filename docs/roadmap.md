@@ -20,7 +20,13 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
 - **Giai đoạn 0: xong.** Pipeline video và ClearKey đã test bằng video mẫu tự sinh. Phim Blender thật thì tải về khi cần.
 - **Giai đoạn 1: code xong, chưa có dữ liệu thật.** Schema `catalog` (xem [erd.md](erd.md)), các SP upsert bằng JSON và seeder TMDB đã có test
   (smoke test SQL, unit test mapping, test hợp đồng JSON ↔ SP). Còn thiếu: chạy seeder với token thật.
-  Lưu ý: từ mạng hiện tại, `api.themoviedb.org` bị ngắt khi bắt tay TLS (còn `image.tmdb.org` thì vẫn vào được).
+  Lưu ý: từ mạng hiện tại, `api.themoviedb.org` bị ngắt khi bắt tay TLS (còn `image.tmdb.org` thì vẫn vào được), cần VPN/WARP khi chạy seeder.
+- **Giai đoạn 2: xong (với dữ liệu mẫu).** Bảng `media.VideoAsset`, SP `catalog.usp_Browse_GetHome` / `media.usp_Playback_Get` / `media.usp_VideoAsset_Attach`,
+  API `GET /api/browse/home` và `GET /api/playback/{titleId}`, trang Browse (hero + các row) và trang `/watch/:titleId` (Shaka Player + ClearKey).
+  Trong lúc chưa có dữ liệu TMDB: `database/dev/dev_catalog_seed.sql` tạo 16 title giả (TmdbId âm), `attach_sample_video.sql` gắn video mẫu cho mọi title.
+  Đã seed dữ liệu TMDB thật (129 phim, 98 series). Trang chủ có hàng Top 10 phim/series, hàng poster dọc, logo phim trên thẻ,
+  nhãn "MỚI", thẻ phóng to khi rê chuột (nút Phát, điểm, độ tuổi, thời lượng, thể loại), và các row được giảm lặp phim.
+  Tên tiếng Việt cho thể loại TV (TMDB chỉ có tiếng Anh): migration 0005 + `CatalogMapper.ViGenreFallback`.
 
 ## Các quyết định đã chốt
 
@@ -39,3 +45,6 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
   mà làm vậy thì DRM mất ý nghĩa. Các dịch vụ streaming lớn cũng làm tương tự: trình duyệt dùng DASH + Widevine/PlayReady,
   còn HLS + FairPlay dành cho thiết bị Apple. Ở dự án này HLS chỉ dùng cho bản không mã hóa.
 - **UI**: Tailwind cho phần người xem; antd chỉ dùng ở `/admin`, được lazy-load thành chunk riêng.
+  Trang xem phim cũng lazy-load (Shaka Player + UI khoảng 1,2 MB), trang Browse không phải tải.
+- **Player**: Giai đoạn 2 dùng UI có sẵn của Shaka (thanh tua, chọn chất lượng, toàn màn hình). Giai đoạn 6 thay bằng bộ điều khiển tự làm.
+- **Ghi nguồn TMDB**: footer ghi nguồn và câu "không được TMDB xác nhận" theo điều khoản sử dụng API của TMDB.

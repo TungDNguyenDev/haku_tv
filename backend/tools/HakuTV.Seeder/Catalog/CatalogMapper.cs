@@ -116,11 +116,34 @@ public static class CatalogMapper
         return new SeasonUpsert(seriesTmdbId, (short)en.SeasonNumber, en.Id, Clean(en.Name), CleanDate(en.AirDate), Clean(en.PosterPath), episodes);
     }
 
+    /// <summary>
+    /// TMDB has no Vietnamese names for the TV-only genres: its vi-VN list returns the English text.
+    /// Used when the vi name is missing or identical to the English one (same values as migration 0005).
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<int, string> ViGenreFallback = new Dictionary<int, string>
+    {
+        [10759] = "Hành Động & Phiêu Lưu",
+        [10762] = "Thiếu Nhi",
+        [10763] = "Tin Tức",
+        [10764] = "Truyền Hình Thực Tế",
+        [10765] = "Khoa Học Viễn Tưởng & Giả Tưởng",
+        [10766] = "Phim Truyền Hình Dài Tập",
+        [10767] = "Talk Show",
+        [10768] = "Chiến Tranh & Chính Trị",
+    };
+
     /// <summary>Movie and TV genre lists share ids for common genres (16 = Animation in both), so merge by id.</summary>
     public static IReadOnlyList<GenreUpsert> MapGenres(IEnumerable<TmdbGenre> vi, IEnumerable<TmdbGenre> en)
     {
-        var viNames = vi.GroupBy(g => g.Id).ToDictionary(g => g.Key, g => Clean(g.First().Name));
         var enNames = en.GroupBy(g => g.Id).ToDictionary(g => g.Key, g => Clean(g.First().Name));
+        var viNames = vi.GroupBy(g => g.Id).ToDictionary(g => g.Key, g => Clean(g.First().Name));
+        foreach (var (id, name) in ViGenreFallback)
+        {
+            if (!enNames.ContainsKey(id) && !viNames.ContainsKey(id)) continue;   // only genres TMDB actually returned
+            var current = viNames.GetValueOrDefault(id);
+            if (current is null || current == enNames.GetValueOrDefault(id))
+                viNames[id] = name;
+        }
 
         return viNames.Keys.Union(enNames.Keys)
             .Order()

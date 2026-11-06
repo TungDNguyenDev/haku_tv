@@ -197,6 +197,20 @@ public class CatalogMapperTests
     }
 
     [Fact]
+    public void MapGenres_gives_tv_genres_a_vietnamese_name_when_tmdb_returns_english()
+    {
+        var genres = CatalogMapper.MapGenres(
+            vi: [new(10765, "Sci-Fi & Fantasy"), new(10759, "Hành động riêng")],
+            en: [new(10765, "Sci-Fi & Fantasy"), new(10759, "Action & Adventure"), new(10762, "Kids")]);
+
+        string Vi(int id) => genres.Single(g => g.TmdbId == id).Translations.Single(t => t.Lang == "vi").Name!;
+        Assert.Equal("Khoa Học Viễn Tưởng & Giả Tưởng", Vi(10765));   // vi == en -> fallback
+        Assert.Equal("Hành động riêng", Vi(10759));                    // a real translation is kept
+        Assert.Equal("Thiếu Nhi", Vi(10762));                          // vi missing -> fallback
+        Assert.Equal(3, genres.Count);                                 // no extra genres invented
+    }
+
+    [Fact]
     public void Upsert_json_uses_the_property_names_the_procs_read()
     {
         var json = JsonSerializer.Serialize(CatalogMapper.MapMovie(Parse<TmdbMovie>(MovieJson)), CatalogWriter.Json);

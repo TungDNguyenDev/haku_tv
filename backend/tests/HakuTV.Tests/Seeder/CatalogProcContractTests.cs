@@ -13,6 +13,7 @@ namespace HakuTV.Tests.Seeder;
 /// rolled back, so the database is left unchanged. Skip with: dotnet test --filter "Category!=Database"
 /// </summary>
 [Trait("Category", "Database")]
+[Collection(DatabaseCollection.Name)]
 public class CatalogProcContractTests
 {
     private const string ConnectionString =

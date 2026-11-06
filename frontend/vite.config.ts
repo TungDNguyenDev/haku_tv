@@ -4,10 +4,13 @@ import { defineConfig } from 'vite'
 
 // The dev server proxies the API and packaged media to the .NET backend,
 // so the browser sees a single origin and no CORS setup is needed while developing.
-const apiTarget = 'http://localhost:5080'
+// HAKUTV_API overrides the target, e.g. to run a second API on another port: $env:HAKUTV_API='http://localhost:5081'
+const apiTarget = process.env.HAKUTV_API ?? 'http://localhost:5080'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // The lazy WatchPage chunk is ~1.2 MB because it holds Shaka Player + UI; only the player route downloads it.
+  build: { chunkSizeWarningLimit: 1300 },
   server: {
     port: 5173,
     strictPort: true,

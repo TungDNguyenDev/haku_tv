@@ -1,7 +1,7 @@
 # ERD
 
 Sơ đồ dưới đây là thiết kế cho toàn hệ thống, nhưng **mỗi bảng chỉ được tạo ở giai đoạn cần đến nó** (cột "Giai đoạn").
-Giai đoạn 1 tạo schema `catalog`. Các bảng của schema `media`, `identity`, `playback` chỉ được phác thảo trước để thấy chỗ nối, chưa chốt chi tiết.
+Giai đoạn 1 tạo schema `catalog`, Giai đoạn 2 tạo `media.VideoAsset`. Các bảng của schema `identity`, `playback` chỉ được phác thảo trước để thấy chỗ nối, chưa chốt chi tiết.
 
 ```mermaid
 erDiagram
@@ -21,9 +21,9 @@ erDiagram
     Season ||--o{ Episode : ""
     Episode ||--o{ EpisodeTranslation : ""
 
-    VideoAsset |o--o{ Title : "phim lẻ (Gđ 2)"
-    VideoAsset |o--o{ Episode : "tập phim (Gđ 2)"
-    VideoAsset ||--o| ContentKey : "DRM"
+    Title ||--o{ VideoAsset : "phim lẻ / fallback series"
+    Episode |o--o| VideoAsset : "tập phim"
+    ContentKey |o--o{ VideoAsset : "NULL = không mã hóa"
 
     Account ||--o{ Profile : "tối đa 5 (Gđ 3)"
     Profile ||--o{ WatchProgress : "Gđ 4"
@@ -84,8 +84,8 @@ erDiagram
 | Schema | Bảng | Giai đoạn |
 |---|---|---|
 | `catalog` | Language, Certification, Title, TitleTranslation, Genre, GenreTranslation, TitleGenre, Person, TitleCredit, TitleVideo, Season, Episode, EpisodeTranslation | **1** |
-| `media` | VideoAsset (link Title/Episode tới thư mục đã đóng gói trong `media/packaged`) | 2 |
-| `drm` | ContentKey (đã có), sẽ nối với VideoAsset | 0 → 2 |
+| `media` | VideoAsset (link Title/Episode tới thư mục đã đóng gói trong `media/packaged`) | **2** |
+| `drm` | ContentKey, được VideoAsset tham chiếu qua `ContentKeyId` | 0, nối ở 2 |
 | `identity` | Account, RefreshToken, Profile | 3 |
 | `playback` | WatchProgress, MyList, Rating | 4 |
 | `stats` | DailyTitleViews (snapshot cho Top 10) | 5 |
@@ -123,6 +123,8 @@ Nhờ đó FE tự chọn kích thước ảnh: poster nhỏ cho row, backdrop l
 | `TitleGenre` PK `(TitleId, GenreId)` + `IX (GenreId, TitleId)` | 2 chiều: thể loại của 1 phim / các phim của 1 thể loại (row theo thể loại) |
 | `TitleCredit` PK `(TitleId, PersonId, CreditType)` + `IX (PersonId)` | dàn diễn viên của 1 phim / các phim có diễn viên X |
 | `UX_Season (TitleId, SeasonNumber)`, `UX_Episode (SeasonId, EpisodeNumber)` | chọn season, tính "tập kế tiếp" |
+| `UX_VideoAsset_Title_Episode (TitleId, EpisodeId)` | "title có video không?" (cột `HasVideo` ở browse) và chọn video để phát đều là seek theo `TitleId`. Unique nên mỗi phim/tập chỉ có 1 video; NULL được coi là bằng nhau nên mỗi title có tối đa 1 dòng `EpisodeId IS NULL` |
+| `Title.VoteAverage`, `Title.ReleaseDate`: **cố ý không có index** | row "Đánh giá cao" và "Mới phát hành" scan vài trăm dòng + Top N Sort, chỉ vài ms. Thêm index chỉ làm chậm seeder; xem lại khi catalog lên hàng chục nghìn title |
 
 ## Ghi dữ liệu: `...UpsertFromJson`
 
@@ -131,3 +133,30 @@ Seeder gửi **một tài liệu JSON cho mỗi title** (theo format riêng củ
 upsert `Title` → upsert `Person` (set-based) → thay toàn bộ bảng con (translation, genre, credit, video).
 Một title có nhiều tầng dữ liệu (dịch, diễn viên, video...), nên gửi một tài liệu JSON gọn hơn nhiều so với 5 TVP riêng.
 Còn khi chỉ là danh sách phẳng (như danh sách KID của DRM) thì vẫn dùng TVP.
+
+## Đọc dữ liệu cho trang browse: `catalog.usp_Browse_GetHome`
+
+Một lần gọi trả về **2 result set**: hero (0–1 dòng) và **danh sách item phẳng** `(RowOrder, RowKey, RowName, Position, ...cột thẻ phim)`.
+API gom danh sách phẳng thành các row (Dapper multi-mapping, tách cột ở `TitleId`). Lý do không trả mỗi row một result set: số row thể loại phụ thuộc dữ liệu.
+
+- Mỗi row có một **`Layout`** do SP quyết định: `standard` (thẻ ngang 16:9 có logo phim), `top10` (poster + số thứ tự lớn), `poster` (poster dọc 2:3).
+  FE chỉ việc vẽ theo layout, nên đổi bố cục trang chủ chỉ cần sửa SP.
+- Các title được lọc độ tuổi **một lần** vào bảng tạm `#visible`, mọi row đọc từ đó.
+- Mỗi row được đổ vào bảng tạm `#items` bằng **một `INSERT ... SELECT TOP (n)` riêng**, theo thứ tự: 2 hàng Top 10 trước, rồi các row còn lại.
+- **Giảm lặp phim giữa các row**: row sau sắp xếp theo `Seen` trước (title đã có ở row trước = 1, đẩy xuống cuối), rồi mới theo tiêu chí của row.
+  Row vẫn đủ phim, nhưng các thẻ đầu tiên của mỗi row khác nhau. Đổi lại, các row này không còn dừng sớm trên index seek mà cần Top N Sort; với vài trăm title chỉ tốn vài ms.
+  Hai hàng Top 10 là bảng xếp hạng nên không bị sắp lại.
+- Row thể loại: chọn các thể loại có nhiều phim nhất (tối thiểu 5 phim), rồi `CROSS APPLY` lấy TOP n phim của từng thể loại qua `IX_TitleGenre_Genre`.
+- Mỗi thẻ có thêm `Genres` (tối đa 3 tên, ghép bằng `STRING_AGG`, bỏ tiền tố "Phim ") và `IsRecent` (phát hành trong 60 ngày) cho thẻ phóng to khi rê chuột và nhãn "MỚI".
+- Cột text (tên, mô tả) chỉ được join **một lần ở cuối** qua `catalog.fn_TitleText` (inline TVF, fallback từng trường).
+- Lọc độ tuổi: `ISNULL(MaturityAge, 18) <= @AgeLimit`, `@MaxMaturityAge` NULL = không giới hạn. Giai đoạn 3 truyền 12 cho profile Kids.
+- Hero: chọn trong 10 phim phổ biến nhất, ưu tiên phim có backdrop và có video, đổi mỗi ngày bằng `ABS(CHECKSUM(TitleId, @Today))`
+  (thứ tự giả ngẫu nhiên nhưng cố định trong ngày, F5 không bị nhảy phim).
+
+## Phát video: `media.usp_Playback_Get`
+
+Phim lẻ: video của title (`EpisodeId IS NULL`). Series: tập đầu tiên có video (season 1 trước, "Specials" season 0 xếp cuối),
+không có tập nào thì dùng video cấp series. API ghép `MediaPath` thành `/media/<MediaPath>/manifest.mpd` và, nếu có `ContentKeyId`,
+trả thêm `drm: { keySystem: "org.w3.clearkey", licenseUrl }`. Key không bao giờ đi qua endpoint này.
+
+`MediaPath` được kiểm tra 2 lớp vì nó sẽ thành đường dẫn file: `CHECK (MediaPath NOT LIKE '%[^a-zA-Z0-9_-]%')` trong DB và kiểm tra lại ở API.

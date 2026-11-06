@@ -19,6 +19,7 @@ frontend/           Vite + React TS, cổng :5173 (proxy /api và /media sang AP
 database/
   migrations/       0001_xxx.sql, 0002_xxx.sql ... chạy đúng 1 lần mỗi file, theo thứ tự tên
   programmability/  SP/view/function (CREATE OR ALTER), chạy lại mỗi lần chạy migrator
+  dev/              script chỉ dùng khi dev: dữ liệu phim mẫu, gắn video mẫu (chạy tay, migrator không chạy)
   tests/            smoke test SQL (chạy trong transaction rồi rollback)
 media/              video (không đưa vào git), xem media/README.md
 tools/              script video (make-sample/encode/package), bin/packager.exe
@@ -60,13 +61,23 @@ dotnet run --project backend/tools/HakuTV.Seeder
 dotnet run --project backend/tools/HakuTV.Seeder -- --Seed:MoviePopularPages 1 --Seed:MovieTopRatedPages 0 --Seed:SeriesPopularPages 1 --Seed:SeriesTopRatedPages 0
 ```
 
+Chưa có token / mạng chặn TMDB thì dùng dữ liệu mẫu (16 phim giả, không có ảnh). Mở các file này trong SSMS rồi F5, hoặc:
+
+```powershell
+sqlcmd -S .\SQLEXPRESS -d HakuTV -E -C -I -b -f 65001 -i database\dev\dev_catalog_seed.sql      # 16 title giả, TmdbId âm
+sqlcmd -S .\SQLEXPRESS -d HakuTV -E -C -I -b -f 65001 -i database\dev\attach_sample_video.sql   # gắn video mẫu cho mọi title chưa có video
+sqlcmd -S .\SQLEXPRESS -d HakuTV -E -C -I -b -f 65001 -i database\dev\remove_dev_catalog.sql    # xóa dữ liệu giả khi đã có dữ liệu thật
+```
+
+Sau mỗi lần chạy seeder TMDB, chạy lại `attach_sample_video.sql` để phim mới cũng bấm Phát được.
+
 Số trang và số luồng chỉnh được trong `backend/tools/HakuTV.Seeder/appsettings.json` (mục `Seed`).
 Mã thoát: `0` OK, `1` có title bị lỗi (đã bỏ qua), `2` chưa có token, `3` token sai, `4` không kết nối được TMDB.
 
 ## Kiểm thử
 
 ```powershell
-dotnet test backend                                       # unit test + test hợp đồng JSON với SP (cần DB local)
+dotnet test backend                                       # unit test + test chạy SP/repository trên DB local (rollback)
 dotnet test backend --filter "Category!=Database"         # chỉ unit test
 sqlcmd -S .\SQLEXPRESS -d HakuTV -E -C -I -b -i database\tests\catalog_smoke_test.sql
 ```
