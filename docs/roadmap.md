@@ -15,6 +15,13 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
 | 8 | **Admin** (antd) – upload → Hangfire transcode/package → publish | Đưa phim mới lên mà không cần chạy script tay |
 | 9 | **Tùy chọn** – Widevine thật qua nhà cung cấp multi-DRM, gói cước, giới hạn thiết bị, Redis, SignalR | – |
 
+## Trạng thái
+
+- **Giai đoạn 0: xong.** Pipeline video và ClearKey đã test bằng video mẫu tự sinh. Phim Blender thật thì tải về khi cần.
+- **Giai đoạn 1: code xong, chưa có dữ liệu thật.** Schema `catalog` (xem [erd.md](erd.md)), các SP upsert bằng JSON và seeder TMDB đã có test
+  (smoke test SQL, unit test mapping, test hợp đồng JSON ↔ SP). Còn thiếu: chạy seeder với token thật.
+  Lưu ý: từ mạng hiện tại, `api.themoviedb.org` bị ngắt khi bắt tay TLS (còn `image.tmdb.org` thì vẫn vào được).
+
 ## Các quyết định đã chốt
 
 - **SQL Server Express** (`.\SQLEXPRESS`). Giới hạn 10GB không ảnh hưởng vì video nằm trên đĩa, DB chỉ lưu đường dẫn.

@@ -13,11 +13,13 @@ backend/            .NET solution (target net8.0)
   src/NetflixClone.Core           domain + interface
   src/NetflixClone.Infrastructure Dapper, SqlClient
   src/NetflixClone.DbMigrator     chạy các script trong database/ bằng DbUp
+  tools/NetflixClone.Seeder       nhập phim/series từ TMDB vào schema catalog
   tests/NetflixClone.Tests        xUnit
 frontend/           Vite + React TS, cổng :5173 (proxy /api và /media sang API)
 database/
   migrations/       0001_xxx.sql, 0002_xxx.sql ... chạy đúng 1 lần mỗi file, theo thứ tự tên
   programmability/  SP/view/function (CREATE OR ALTER), chạy lại mỗi lần chạy migrator
+  tests/            smoke test SQL (chạy trong transaction rồi rollback)
 media/              video (không đưa vào git), xem media/README.md
 tools/              script video (make-sample/encode/package), bin/packager.exe
 docs/               lộ trình, ERD, ghi chú
@@ -43,6 +45,30 @@ dotnet run --project backend/src/NetflixClone.Api --launch-profile http
 
 # 3. Frontend -> http://localhost:5173
 cd frontend; npm install; npm run dev
+```
+
+## Nhập dữ liệu phim từ TMDB (Giai đoạn 1)
+
+```powershell
+# Một lần: lưu token vào user secrets (nằm ở %APPDATA%\Microsoft\UserSecrets, không nằm trong repo)
+dotnet user-secrets set "Tmdb:AccessToken" "<API Read Access Token>" --project backend/tools/NetflixClone.Seeder
+
+# Nhập dữ liệu (mặc định khoảng 140 phim + 100 series, mỗi series tối đa 2 season). Chạy lại bao nhiêu lần cũng được: mọi thao tác đều là upsert.
+dotnet run --project backend/tools/NetflixClone.Seeder
+
+# Chạy thử ít dữ liệu
+dotnet run --project backend/tools/NetflixClone.Seeder -- --Seed:MoviePopularPages 1 --Seed:MovieTopRatedPages 0 --Seed:SeriesPopularPages 1 --Seed:SeriesTopRatedPages 0
+```
+
+Số trang và số luồng chỉnh được trong `backend/tools/NetflixClone.Seeder/appsettings.json` (mục `Seed`).
+Mã thoát: `0` OK, `1` có title bị lỗi (đã bỏ qua), `2` chưa có token, `3` token sai, `4` không kết nối được TMDB.
+
+## Kiểm thử
+
+```powershell
+dotnet test backend                                       # unit test + test hợp đồng JSON với SP (cần DB local)
+dotnet test backend --filter "Category!=Database"         # chỉ unit test
+sqlcmd -S .\SQLEXPRESS -d NetflixClone -E -C -I -b -i database\tests\catalog_smoke_test.sql
 ```
 
 ## Pipeline video (spike của Giai đoạn 0)
