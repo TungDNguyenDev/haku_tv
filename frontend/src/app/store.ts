@@ -5,7 +5,6 @@ import { configureSession, refreshSession } from '../features/auth/session'
 import browseReducer from '../features/browse/browseSlice'
 import playbackReducer from '../features/playback/playbackSlice'
 import profilesReducer from '../features/profiles/profilesSlice'
-import systemReducer from '../features/system/systemSlice'
 import { setAccessToken, setRefreshHandler } from '../services/http'
 import { rootSaga } from './rootSaga'
 
@@ -15,7 +14,6 @@ export const store = configureStore({
   reducer: {
     auth: authReducer,
     profiles: profilesReducer,
-    system: systemReducer,
     browse: browseReducer,
     playback: playbackReducer,
   },
