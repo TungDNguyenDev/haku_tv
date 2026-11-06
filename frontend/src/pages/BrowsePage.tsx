@@ -1,23 +1,24 @@
 import { useEffect } from 'react'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
-import { CATALOG_LANGUAGE } from '../app/config'
 import AppFooter from '../components/AppFooter'
 import AppHeader from '../components/AppHeader'
 import { HoverPreviewProvider } from '../components/browse/HoverPreview'
 import HeroBanner from '../components/HeroBanner'
 import TitleRow from '../components/TitleRow'
+import { selectLanguage } from '../features/auth/authSlice'
 import { homeRequested } from '../features/browse/browseSlice'
 
 export default function BrowsePage() {
   const dispatch = useAppDispatch()
   const { status, feed, error } = useAppSelector((s) => s.browse)
+  const lang = useAppSelector(selectLanguage)
 
-  // Load once; coming back from the player reuses the feed already in the store.
+  // Load once per profile; coming back from the player reuses the feed already in the store.
   useEffect(() => {
-    if (status === 'idle') dispatch(homeRequested({ lang: CATALOG_LANGUAGE }))
-  }, [status, dispatch])
+    if (status === 'idle') dispatch(homeRequested({ lang }))
+  }, [status, lang, dispatch])
 
-  const reload = () => dispatch(homeRequested({ lang: CATALOG_LANGUAGE }))
+  const reload = () => dispatch(homeRequested({ lang }))
 
   return (
     <div className="min-h-screen overflow-x-hidden">

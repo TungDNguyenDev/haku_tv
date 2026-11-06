@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using HakuTV.Core.Abstractions;
 using HakuTV.Core.Catalog;
 using HakuTV.Core.Drm;
+using HakuTV.Core.Identity;
 using HakuTV.Core.Media;
+using HakuTV.Infrastructure.Identity;
 using HakuTV.Infrastructure.Catalog;
 using HakuTV.Infrastructure.Data;
 using HakuTV.Infrastructure.Drm;
@@ -22,6 +24,9 @@ public static class DependencyInjection
         services.AddScoped<IContentKeyRepository, ContentKeyRepository>();
         services.AddScoped<ICatalogQueries, CatalogQueries>();
         services.AddScoped<IPlaybackRepository, PlaybackRepository>();
+        services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IProfileRepository, ProfileRepository>();
         return services;
     }
 }

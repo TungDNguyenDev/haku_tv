@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
-import { CATALOG_LANGUAGE } from '../app/config'
 import { BackIcon } from '../components/icons'
 import ShakaPlayer from '../components/ShakaPlayer'
 import type { PlaybackErrorCode, PlaybackInfo } from '../features/playback/playbackApi'
+import { selectLanguage } from '../features/auth/authSlice'
 import { playbackCleared, playbackRequested } from '../features/playback/playbackSlice'
 
 const API_ERRORS: Record<PlaybackErrorCode, string> = {
   'no-video': 'Phim này chưa có video.',
+  'not-allowed': 'Nội dung này không dành cho hồ sơ trẻ em.',
   'files-missing': 'Không tìm thấy file video trên server (thư mục media/packaged). Hãy chạy lại tools/package.ps1.',
   network: 'Không kết nối được tới API. API (.NET) đã chạy chưa?',
 }
@@ -34,6 +35,7 @@ export default function WatchPage() {
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
   const { status, info, error } = useAppSelector((s) => s.playback)
+  const lang = useAppSelector(selectLanguage)
   const chrome = useIdleChrome()
 
   const id = Number(titleId)
@@ -48,11 +50,11 @@ export default function WatchPage() {
 
   useEffect(() => {
     if (!Number.isInteger(id)) return
-    dispatch(playbackRequested({ titleId: id, episodeId, lang: CATALOG_LANGUAGE }))
+    dispatch(playbackRequested({ titleId: id, episodeId, lang }))
     return () => {
       dispatch(playbackCleared())
     }
-  }, [id, episodeId, dispatch])
+  }, [id, episodeId, lang, dispatch])
 
   const message = !Number.isInteger(id)
     ? 'Đường dẫn không hợp lệ.'

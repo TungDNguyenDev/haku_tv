@@ -27,6 +27,10 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
   Đã seed dữ liệu TMDB thật (129 phim, 98 series). Trang chủ có hàng Top 10 phim/series, hàng poster dọc, logo phim trên thẻ,
   nhãn "MỚI", thẻ phóng to khi rê chuột (nút Phát, điểm, độ tuổi, thời lượng, thể loại), và các row được giảm lặp phim.
   Tên tiếng Việt cho thể loại TV (TMDB chỉ có tiếng Anh): migration 0005 + `CatalogMapper.ViGenreFallback`.
+- **Giai đoạn 3: xong.** Schema `identity` (Account, Profile, RefreshToken), đăng ký/đăng nhập (khóa 5 phút sau 5 lần sai, rate limit 10 lần/phút/IP),
+  JWT 15 phút + refresh token 30 ngày trong cookie HttpOnly (xoay vòng, phát hiện token bị đánh cắp), tối đa 5 hồ sơ, hồ sơ trẻ em (≤ 12 tuổi),
+  ngôn ngữ theo hồ sơ. Browse/playback bắt buộc đã chọn hồ sơ; hồ sơ trẻ em bị chặn phát phim vượt độ tuổi (403).
+  Chi tiết thiết kế: [erd.md](erd.md#đăng-nhập-và-hồ-sơ-schema-identity-giai-đoạn-3).
 
 ## Các quyết định đã chốt
 

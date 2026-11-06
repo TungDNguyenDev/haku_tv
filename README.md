@@ -48,6 +48,15 @@ dotnet run --project backend/src/HakuTV.Api --launch-profile http
 cd frontend; npm install; npm run dev
 ```
 
+Mở http://localhost:5173: tạo tài khoản ở `/signup`, chọn hồ sơ, rồi vào trang chủ.
+
+Khóa ký JWT: nếu chưa đặt, API tự sinh khóa ngẫu nhiên mỗi lần chạy (môi trường Development). Mọi thứ vẫn chạy
+(trình duyệt tự lấy access token mới từ cookie refresh), nhưng nên đặt cố định một lần:
+
+```powershell
+dotnet user-secrets set "Jwt:SigningKey" "<chuỗi ngẫu nhiên từ 48 ký tự>" --project backend/src/HakuTV.Api
+```
+
 ## Nhập dữ liệu phim từ TMDB (Giai đoạn 1)
 
 ```powershell

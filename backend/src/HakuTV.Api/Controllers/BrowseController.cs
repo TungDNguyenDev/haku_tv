@@ -1,18 +1,24 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HakuTV.Api.Auth;
 using HakuTV.Core.Catalog;
 
 namespace HakuTV.Api.Controllers;
 
 [ApiController]
+[Authorize(Policy = AuthClaims.ProfilePolicy)]
 [Route("api/browse")]
 public sealed class BrowseController(ICatalogQueries catalog) : ControllerBase
 {
-    /// <summary>Hero title + content rows of the home screen. GET /api/browse/home?lang=vi</summary>
+    /// <summary>
+    /// Hero title + content rows of the home screen. GET /api/browse/home?lang=vi
+    /// The maturity limit comes from the profile token (Kids = 12), never from the request,
+    /// so a Kids profile cannot ask for adult rows by editing the URL.
+    /// </summary>
     [HttpGet("home")]
     public async Task<ActionResult<HomeFeed>> Home([FromQuery] string? lang, CancellationToken ct)
     {
-        // Phase 3: the maturity limit comes from the signed-in profile (Kids = 12) instead of "no limit".
-        var feed = await catalog.GetHomeAsync(CatalogLanguage.Normalize(lang), maxMaturityAge: null, ct);
+        var feed = await catalog.GetHomeAsync(CatalogLanguage.Normalize(lang), User.MaxMaturityAge(), ct);
         return Ok(feed);
     }
 }

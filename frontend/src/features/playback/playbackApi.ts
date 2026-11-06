@@ -18,8 +18,8 @@ export interface PlaybackInfo {
   drm: PlaybackDrm | null
 }
 
-// 'no-video' / 'files-missing' come from the API (404 body), 'network' = API unreachable or unexpected error.
-export type PlaybackErrorCode = 'no-video' | 'files-missing' | 'network'
+// 'no-video' / 'files-missing' (404) and 'not-allowed' (403, Kids profile) come from the API, 'network' = API unreachable or unexpected error.
+export type PlaybackErrorCode = 'no-video' | 'not-allowed' | 'files-missing' | 'network'
 
 export async function getPlayback(titleId: number, episodeId: number | null, lang: string): Promise<PlaybackInfo> {
   const res = await http.get<PlaybackInfo>(`/api/playback/${titleId}`, {
@@ -31,7 +31,7 @@ export async function getPlayback(titleId: number, episodeId: number | null, lan
 export function toPlaybackErrorCode(err: unknown): PlaybackErrorCode {
   if (axios.isAxiosError<{ code?: string }>(err)) {
     const code = err.response?.data?.code
-    if (code === 'no-video' || code === 'files-missing') return code
+    if (code === 'no-video' || code === 'not-allowed' || code === 'files-missing') return code
   }
   return 'network'
 }

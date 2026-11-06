@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import { profileSelected, sessionEnded } from '../auth/authSlice'
 import type { HomeFeed } from './browseApi'
 
 interface BrowseState {
@@ -25,6 +26,12 @@ const browseSlice = createSlice({
       state.status = 'failed'
       state.error = action.payload
     },
+  },
+  // Each profile sees its own rows (Kids filter, language): a profile switch or edit, or sign-out, drops the cached
+  // feed so BrowsePage loads it again with the new token.
+  extraReducers: (builder) => {
+    builder.addCase(profileSelected, () => initialState)
+    builder.addCase(sessionEnded, () => initialState)
   },
 })
 

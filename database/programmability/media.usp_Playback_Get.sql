@@ -8,13 +8,17 @@
     Phase 4 replaces "first episode" with "where the profile stopped".
 
     Returns 0 or 1 row. The API turns MediaPath into /media/<MediaPath>/manifest.mpd.
+    IsAllowed = 0 when the title is rated above the profile's limit (Kids profile): the API answers 403.
+    (The row is still returned rather than filtered out, so the API can tell "not allowed" from "no video".)
 
     EXEC media.usp_Playback_Get @TitleId = 1, @LanguageCode = 'vi';
+    EXEC media.usp_Playback_Get @TitleId = 1, @MaxMaturityAge = 12;
 */
 CREATE OR ALTER PROCEDURE media.usp_Playback_Get
-    @TitleId      int,
-    @EpisodeId    int        = NULL,
-    @LanguageCode varchar(5) = 'vi'
+    @TitleId        int,
+    @EpisodeId      int        = NULL,
+    @LanguageCode   varchar(5) = 'vi',
+    @MaxMaturityAge tinyint    = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -29,7 +33,9 @@ BEGIN
            e.EpisodeNumber,
            COALESCE(etp.Name, ete.Name)                                 AS EpisodeName,
            v.MediaPath,
-           CAST(CASE WHEN v.ContentKeyId IS NULL THEN 0 ELSE 1 END AS bit) AS IsEncrypted
+           CAST(CASE WHEN v.ContentKeyId IS NULL THEN 0 ELSE 1 END AS bit) AS IsEncrypted,
+           CAST(CASE WHEN ISNULL(t.MaturityAge, 18) <= ISNULL(@MaxMaturityAge, 18)
+                     THEN 1 ELSE 0 END AS bit)                         AS IsAllowed
     FROM   media.VideoAsset AS v
            INNER JOIN catalog.Title AS t ON t.TitleId = v.TitleId
            CROSS APPLY catalog.fn_TitleText(v.TitleId, @LanguageCode) AS txt

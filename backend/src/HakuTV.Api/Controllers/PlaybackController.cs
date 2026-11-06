@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HakuTV.Api.Auth;
 using HakuTV.Api.Media;
 using HakuTV.Core.Catalog;
 using HakuTV.Core.Media;
@@ -10,6 +12,7 @@ namespace HakuTV.Api.Controllers;
 /// which key system and license server to use. The player never sees a key here; it asks the license endpoint.
 /// </summary>
 [ApiController]
+[Authorize(Policy = AuthClaims.ProfilePolicy)]
 [Route("api/playback")]
 public sealed class PlaybackController(IPlaybackRepository playback, MediaStorage media, ILogger<PlaybackController> logger)
     : ControllerBase
@@ -22,9 +25,11 @@ public sealed class PlaybackController(IPlaybackRepository playback, MediaStorag
     public async Task<ActionResult<PlaybackResponse>> Get(int titleId, [FromQuery] int? episodeId, [FromQuery] string? lang,
         CancellationToken ct)
     {
-        var source = await playback.GetAsync(titleId, episodeId, CatalogLanguage.Normalize(lang), ct);
+        var source = await playback.GetAsync(titleId, episodeId, CatalogLanguage.Normalize(lang), User.MaxMaturityAge(), ct);
         if (source is null)
             return NotFound(new PlaybackError("no-video", "This title has no video yet."));
+        if (!source.IsAllowed)
+            return StatusCode(StatusCodes.Status403Forbidden, new PlaybackError("not-allowed", "This title is not available for this profile."));
 
         if (!media.HasDashManifest(source.MediaPath))
         {

@@ -1,7 +1,7 @@
 # ERD
 
 Sơ đồ dưới đây là thiết kế cho toàn hệ thống, nhưng **mỗi bảng chỉ được tạo ở giai đoạn cần đến nó** (cột "Giai đoạn").
-Giai đoạn 1 tạo schema `catalog`, Giai đoạn 2 tạo `media.VideoAsset`. Các bảng của schema `identity`, `playback` chỉ được phác thảo trước để thấy chỗ nối, chưa chốt chi tiết.
+Giai đoạn 1 tạo schema `catalog`, Giai đoạn 2 tạo `media.VideoAsset`, Giai đoạn 3 tạo schema `identity`. Các bảng của schema `playback` chỉ được phác thảo trước để thấy chỗ nối, chưa chốt chi tiết.
 
 ```mermaid
 erDiagram
@@ -25,7 +25,8 @@ erDiagram
     Episode |o--o| VideoAsset : "tập phim"
     ContentKey |o--o{ VideoAsset : "NULL = không mã hóa"
 
-    Account ||--o{ Profile : "tối đa 5 (Gđ 3)"
+    Account ||--o{ Profile : "tối đa 5"
+    Account ||--o{ RefreshToken : "xoay vòng, theo FamilyId"
     Profile ||--o{ WatchProgress : "Gđ 4"
     Profile ||--o{ MyList : "Gđ 4"
     Profile ||--o{ Rating : "Gđ 4"
@@ -86,7 +87,7 @@ erDiagram
 | `catalog` | Language, Certification, Title, TitleTranslation, Genre, GenreTranslation, TitleGenre, Person, TitleCredit, TitleVideo, Season, Episode, EpisodeTranslation | **1** |
 | `media` | VideoAsset (link Title/Episode tới thư mục đã đóng gói trong `media/packaged`) | **2** |
 | `drm` | ContentKey, được VideoAsset tham chiếu qua `ContentKeyId` | 0, nối ở 2 |
-| `identity` | Account, RefreshToken, Profile | 3 |
+| `identity` | Account, Profile, RefreshToken | **3** |
 | `playback` | WatchProgress, MyList, Rating | 4 |
 | `stats` | DailyTitleViews (snapshot cho Top 10) | 5 |
 
@@ -160,3 +161,31 @@ không có tập nào thì dùng video cấp series. API ghép `MediaPath` thàn
 trả thêm `drm: { keySystem: "org.w3.clearkey", licenseUrl }`. Key không bao giờ đi qua endpoint này.
 
 `MediaPath` được kiểm tra 2 lớp vì nó sẽ thành đường dẫn file: `CHECK (MediaPath NOT LIKE '%[^a-zA-Z0-9_-]%')` trong DB và kiểm tra lại ở API.
+## Đăng nhập và hồ sơ (schema `identity`, Giai đoạn 3)
+
+Tự làm bằng SP + JWT, **không dùng ASP.NET Core Identity** (Identity dựa trên EF Core, còn dự án này chỉ dùng Dapper + SP).
+API chỉ mượn `PasswordHasher` của Identity (PBKDF2, có salt, có version), nên SQL chỉ lưu và trả về chuỗi hash, không bao giờ so mật khẩu.
+
+| Bảng | Điểm đáng chú ý |
+|---|---|
+| `Account` | `UQ_Account_Email` trên collation không phân biệt hoa thường, nên `A@x.com` và `a@x.com` là một. `FailedLoginCount` + `LockoutUntil`: sai 5 lần liên tiếp thì khóa 5 phút |
+| `Profile` | `MaxMaturityAge AS (CASE WHEN IsKids = 1 THEN 12 END) PERSISTED`: cột tính toán, luôn khớp với `IsKids`. Cần `QUOTED_IDENTIFIER ON` khi ghi vào bảng (SSMS bật sẵn; `sqlcmd` thì thêm `-I`) |
+| `RefreshToken` | Chỉ lưu SHA-256 của token. Mọi token sinh ra từ cùng một lần đăng nhập có chung `FamilyId` |
+
+**Giới hạn 5 hồ sơ** là ràng buộc trên nhiều dòng nên không dùng được CHECK. `usp_Profile_Create` đếm bằng `COUNT(*) WITH (UPDLOCK, HOLDLOCK)`:
+khóa khoảng khóa (key-range) của tài khoản đó trên `UQ_Profile_Account_Name` đến khi COMMIT. Hai request song song không thể cùng tạo hồ sơ thứ 5,
+và tài khoản khác không bị chặn.
+
+**Chống IDOR**: mọi SP hồ sơ nhận `@AccountId` lấy từ token (không lấy từ request) và lọc theo nó. Id hồ sơ của tài khoản khác sẽ trả "không tìm thấy" (404), không lộ gì.
+
+**Xoay vòng refresh token** (`usp_RefreshToken_Rotate`), đọc dòng token bằng `WITH (UPDLOCK)` để hai lần xoay cùng một token chạy tuần tự:
+
+| Kết quả | Khi nào | API trả |
+|---|---|---|
+| `ok` | token hợp lệ: thu hồi token cũ, tạo token mới cùng family | 200 + cookie mới |
+| `stale` | token vừa bị xoay < 10 giây trước, thường do 2 tab cùng refresh | 409, client thử lại sau 0,5 giây |
+| `reused` | token đã bị xoay từ lâu mà vẫn được gửi lên, tức là có bản sao bị đánh cắp | 401, **thu hồi cả family** |
+| `expired` / `invalid` | hết hạn / không tồn tại | 401 |
+
+**Access token** (JWT, 15 phút) có `sub` (tài khoản). Sau khi chọn hồ sơ thì có thêm `pid`, `lng`, và `mat` (= 12 với hồ sơ trẻ em).
+Browse và playback yêu cầu có `pid` (policy `Profile`) và lấy giới hạn độ tuổi từ `mat`, nên hồ sơ trẻ em không thể sửa URL để xem phim người lớn.

@@ -129,22 +129,27 @@ public class BrowsePlaybackDbTests
         var (movieId, seriesId, episode2Id) = await InsertTitlesAsync();
         var repo = new PlaybackRepository(new Factory());
 
-        var movie = await repo.GetAsync(movieId, null, "en");
+        var movie = await repo.GetAsync(movieId, null, "en", maxMaturityAge: null);
         Assert.NotNull(movie);
         Assert.Equal("test-movie-v2", movie.MediaPath);
         Assert.Equal("Test movie", movie.TitleName);
         Assert.Null(movie.EpisodeId);
         Assert.False(movie.IsEncrypted);
 
-        var series = await repo.GetAsync(seriesId, null, "vi");      // season 1 episode 1, not the special (season 0)
+        var series = await repo.GetAsync(seriesId, null, "vi", maxMaturityAge: null);      // season 1 episode 1, not the special (season 0)
         Assert.NotNull(series);
         Assert.Equal("test-s1e1", series.MediaPath);
         Assert.Equal("Tập một", series.EpisodeName);
 
-        var chosen = await repo.GetAsync(seriesId, episode2Id, "vi");
+        var chosen = await repo.GetAsync(seriesId, episode2Id, "vi", maxMaturityAge: null);
         Assert.Equal("test-s1e2", chosen?.MediaPath);
         Assert.Equal("Second", chosen?.EpisodeName);                  // vi missing -> en
 
-        Assert.Null(await repo.GetAsync(-1, null, "vi"));
+        Assert.Null(await repo.GetAsync(-1, null, "vi", maxMaturityAge: null));
+
+        Assert.True(movie.IsAllowed);
+        var asKids = await repo.GetAsync(movieId, null, "vi", maxMaturityAge: 12);    // rated R (17) -> found but not allowed
+        Assert.False(asKids?.IsAllowed);
+        Assert.True((await repo.GetAsync(seriesId, null, "vi", maxMaturityAge: 12))?.IsAllowed == false);   // unrated counts as 18
     }
 }
