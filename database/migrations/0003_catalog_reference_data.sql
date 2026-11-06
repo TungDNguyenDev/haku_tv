@@ -1,7 +1,7 @@
 /*
     0003 - Reference data: supported languages and rating → minimum age mapping.
 
-    Ages follow Netflix's maturity tiers: Little Kids (0), Older Kids (7), Teens (13), 16+, Mature (17/18).
+    Ages follow the usual streaming maturity tiers: Little Kids (0), Older Kids (7), Teens (13), 16+, Mature (17/18).
     VN ratings follow the Vietnamese film classification (P, K, T13, T16, T18).
 */
 

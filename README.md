@@ -1,6 +1,6 @@
-# Netflix Clone (local, dùng để học)
+# HakuTV (local, dùng để học)
 
-Clone Netflix chạy hoàn toàn ở local: **.NET 8 Web API + Dapper/Stored Procedure + SQL Server**, **React TS + Redux Toolkit + redux-saga + Tailwind (antd cho trang admin)**,
+Nền tảng xem phim kiểu streaming, dự án cá nhân để học, chạy hoàn toàn ở local: **.NET 8 Web API + Dapper/Stored Procedure + SQL Server**, **React TS + Redux Toolkit + redux-saga + Tailwind (antd cho trang admin)**,
 video phát theo chuẩn **DASH/HLS (CMAF)** có DRM **ClearKey**.
 
 Lộ trình và các quyết định đã chốt: [docs/roadmap.md](docs/roadmap.md)
@@ -9,12 +9,12 @@ Lộ trình và các quyết định đã chốt: [docs/roadmap.md](docs/roadmap
 
 ```
 backend/            .NET solution (target net8.0)
-  src/NetflixClone.Api            Web API, cổng :5080, serve /media, license ClearKey, trang dev /dev/player-test/
-  src/NetflixClone.Core           domain + interface
-  src/NetflixClone.Infrastructure Dapper, SqlClient
-  src/NetflixClone.DbMigrator     chạy các script trong database/ bằng DbUp
-  tools/NetflixClone.Seeder       nhập phim/series từ TMDB vào schema catalog
-  tests/NetflixClone.Tests        xUnit
+  src/HakuTV.Api            Web API, cổng :5080, serve /media, license ClearKey, trang dev /dev/player-test/
+  src/HakuTV.Core           domain + interface
+  src/HakuTV.Infrastructure Dapper, SqlClient
+  src/HakuTV.DbMigrator     chạy các script trong database/ bằng DbUp
+  tools/HakuTV.Seeder       nhập phim/series từ TMDB vào schema catalog
+  tests/HakuTV.Tests        xUnit
 frontend/           Vite + React TS, cổng :5173 (proxy /api và /media sang API)
 database/
   migrations/       0001_xxx.sql, 0002_xxx.sql ... chạy đúng 1 lần mỗi file, theo thứ tự tên
@@ -37,11 +37,11 @@ docs/               lộ trình, ERD, ghi chú
 ## Chạy dự án
 
 ```powershell
-# 1. Database: tạo DB NetflixClone, chạy migration và nạp lại các SP
-dotnet run --project backend/src/NetflixClone.DbMigrator
+# 1. Database: tạo DB HakuTV, chạy migration và nạp lại các SP
+dotnet run --project backend/src/HakuTV.DbMigrator
 
 # 2. API -> http://localhost:5080/swagger   (dừng bằng Ctrl+C)
-dotnet run --project backend/src/NetflixClone.Api --launch-profile http
+dotnet run --project backend/src/HakuTV.Api --launch-profile http
 
 # 3. Frontend -> http://localhost:5173
 cd frontend; npm install; npm run dev
@@ -51,16 +51,16 @@ cd frontend; npm install; npm run dev
 
 ```powershell
 # Một lần: lưu token vào user secrets (nằm ở %APPDATA%\Microsoft\UserSecrets, không nằm trong repo)
-dotnet user-secrets set "Tmdb:AccessToken" "<API Read Access Token>" --project backend/tools/NetflixClone.Seeder
+dotnet user-secrets set "Tmdb:AccessToken" "<API Read Access Token>" --project backend/tools/HakuTV.Seeder
 
 # Nhập dữ liệu (mặc định khoảng 140 phim + 100 series, mỗi series tối đa 2 season). Chạy lại bao nhiêu lần cũng được: mọi thao tác đều là upsert.
-dotnet run --project backend/tools/NetflixClone.Seeder
+dotnet run --project backend/tools/HakuTV.Seeder
 
 # Chạy thử ít dữ liệu
-dotnet run --project backend/tools/NetflixClone.Seeder -- --Seed:MoviePopularPages 1 --Seed:MovieTopRatedPages 0 --Seed:SeriesPopularPages 1 --Seed:SeriesTopRatedPages 0
+dotnet run --project backend/tools/HakuTV.Seeder -- --Seed:MoviePopularPages 1 --Seed:MovieTopRatedPages 0 --Seed:SeriesPopularPages 1 --Seed:SeriesTopRatedPages 0
 ```
 
-Số trang và số luồng chỉnh được trong `backend/tools/NetflixClone.Seeder/appsettings.json` (mục `Seed`).
+Số trang và số luồng chỉnh được trong `backend/tools/HakuTV.Seeder/appsettings.json` (mục `Seed`).
 Mã thoát: `0` OK, `1` có title bị lỗi (đã bỏ qua), `2` chưa có token, `3` token sai, `4` không kết nối được TMDB.
 
 ## Kiểm thử
@@ -68,7 +68,7 @@ Mã thoát: `0` OK, `1` có title bị lỗi (đã bỏ qua), `2` chưa có toke
 ```powershell
 dotnet test backend                                       # unit test + test hợp đồng JSON với SP (cần DB local)
 dotnet test backend --filter "Category!=Database"         # chỉ unit test
-sqlcmd -S .\SQLEXPRESS -d NetflixClone -E -C -I -b -i database\tests\catalog_smoke_test.sql
+sqlcmd -S .\SQLEXPRESS -d HakuTV -E -C -I -b -i database\tests\catalog_smoke_test.sql
 ```
 
 ## Pipeline video (spike của Giai đoạn 0)

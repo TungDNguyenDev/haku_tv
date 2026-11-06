@@ -4,7 +4,7 @@
     {
       "name": "api",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "backend/src/NetflixClone.Api", "--launch-profile", "http"],
+      "runtimeArgs": ["run", "--project", "backend/src/HakuTV.Api", "--launch-profile", "http"],
       "port": 5080,
       "url": "http://localhost:5080"
     },

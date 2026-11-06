@@ -2,7 +2,7 @@
     Smoke test for the catalog procs. Runs inside a transaction and ROLLS BACK at the end: leaves no data behind.
     All ids and texts below are made-up test values.
 
-    sqlcmd -S .\SQLEXPRESS -d NetflixClone -E -C -I -b -i database\tests\catalog_smoke_test.sql
+    sqlcmd -S .\SQLEXPRESS -d HakuTV -E -C -I -b -i database\tests\catalog_smoke_test.sql
     (-I = QUOTED_IDENTIFIER ON, required for tables with filtered indexes)
 */
 SET NOCOUNT ON;

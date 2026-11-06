@@ -26,7 +26,7 @@ $Source  = (Resolve-Path $Source).Path
 $workDir = Join-Path $MediaRoot "work\$Name"
 New-Item -ItemType Directory -Force $workDir | Out-Null
 
-# Height, max bitrate, buffer size. Rough Netflix-like ladder for 24 fps H.264.
+# Height, max bitrate, buffer size. Rough streaming-style ladder for 24 fps H.264.
 $ladder = @(
     @{ Height = 480;  Maxrate = '1400k'; Bufsize = '2800k' },
     @{ Height = 720;  Maxrate = '3000k'; Bufsize = '6000k' },

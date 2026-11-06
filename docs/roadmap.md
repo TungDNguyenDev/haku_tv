@@ -9,7 +9,7 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
 | 2 | **Browse → Play** – các row, hero banner, bấm vào là phát | Duyệt danh mục từ DB thật và phát video qua API |
 | 3 | **Auth + Profiles** – JWT, refresh token, tối đa 5 profile, profile Kids | Đăng nhập, chọn profile; profile Kids chỉ thấy nội dung phù hợp |
 | 4 | **Tiến độ xem** – heartbeat, Continue Watching, My List, đánh giá | Thoát ra rồi xem lại tiếp tục đúng giây đã dừng |
-| 5 | **Chi tiết** – modal chi tiết, season/episode, hover preview, Top 10 | Trải nghiệm duyệt phim giống Netflix |
+| 5 | **Chi tiết** – modal chi tiết, season/episode, hover preview, Top 10 | Trải nghiệm duyệt phim hoàn chỉnh như một dịch vụ streaming thật |
 | 6 | **Player + DRM** – license endpoint ClearKey (.NET), skip intro, tự sang tập kế, phụ đề, chọn chất lượng | Key chỉ được trả cho user đã đăng nhập và có quyền xem |
 | 7 | **Search + Gợi ý** – Full-Text Search, "Because you watched" | Tìm kiếm nhanh, gợi ý hợp lý |
 | 8 | **Admin** (antd) – upload → Hangfire transcode/package → publish | Đưa phim mới lên mà không cần chạy script tay |
@@ -36,6 +36,6 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
 - **Không dùng server phụ**: API .NET serve luôn video (`/media`) và các trang dev (`/dev/...`, chỉ bật ở môi trường Development).
   **ClearKey dùng license server thì chỉ chạy với DASH.** Với ClearKey, Shaka Packager không ghi `EXT-X-KEY` vào HLS,
   nên player không biết phải hỏi license server (Shaka báo lỗi 6010). HLS bản mã hóa chỉ phát được khi đưa key thẳng vào player,
-  mà làm vậy thì DRM mất ý nghĩa. Netflix cũng làm tương tự: trình duyệt dùng DASH + Widevine/PlayReady,
+  mà làm vậy thì DRM mất ý nghĩa. Các dịch vụ streaming lớn cũng làm tương tự: trình duyệt dùng DASH + Widevine/PlayReady,
   còn HLS + FairPlay dành cho thiết bị Apple. Ở dự án này HLS chỉ dùng cho bản không mã hóa.
 - **UI**: Tailwind cho phần người xem; antd chỉ dùng ở `/admin`, được lazy-load thành chunk riêng.

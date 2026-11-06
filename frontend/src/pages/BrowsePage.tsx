@@ -16,7 +16,7 @@ export default function BrowsePage() {
   return (
     <div className="min-h-screen">
       <header className="flex items-center justify-between px-4 py-5 md:px-12">
-        <span className="text-3xl font-black tracking-tight text-brand">NETFLIX CLONE</span>
+        <span className="text-3xl font-black tracking-tight text-brand">HAKUTV</span>
         <Link to="/admin" className="text-sm text-muted hover:text-white">
           Admin
         </Link>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Player Test · HakuTV</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23141414'/%3E%3Cpath fill='%23e50914' d='M15 11h11v17h12V11h11v42H38V37H26v16H15z'/%3E%3C/svg%3E" />
+  <!--
+    Dev-only test page, served by the API at /dev/player-test/ in the Development environment.
+    Video comes from /media/<name>/..., keys from POST /api/drm/clearkey/license (read from SQL Server).
+    The real player will live in the React app (shaka-player from npm).
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/shaka-player@5.3.3/dist/shaka-player.compiled.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; padding: 16px; background: #141414; color: #fff; font: 14px/1.5 "Segoe UI", Roboto, Arial, sans-serif; }
+    h1 { margin: 0 0 12px; font-size: 18px; } h1 b { color: #e50914; }
+    form { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    input, select, button { background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 6px 8px; font: inherit; }
+    button { background: #e50914; border-color: #e50914; font-weight: 600; cursor: pointer; }
+    video { width: 100%; max-width: 960px; aspect-ratio: 16 / 9; background: #000; display: block; }
+    .grid { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin-top: 12px; max-width: 960px; }
+    .grid span:nth-child(odd) { color: #b3b3b3; }
+    #log { margin-top: 12px; max-width: 960px; white-space: pre-wrap; font: 12px/1.4 Consolas, monospace; color: #b3b3b3; }
+    .err { color: #ff6b6b; }
+  </style>
+</head>
+<body>
+  <h1><b>HakuTV</b> · player test</h1>
+  <form id="f">
+    <input id="name" placeholder="name (vd: sample, sample-clearkey)" size="30" />
+    <select id="format">
+      <option value="manifest.mpd">DASH (manifest.mpd)</option>
+      <option value="master.m3u8">HLS (master.m3u8) · chỉ bản không mã hóa</option>
+    </select>
+    <button>Load</button>
+    <select id="quality" title="Chất lượng"><option value="auto">Auto (ABR)</option></select>
+  </form>
+
+  <video id="video" controls autoplay muted></video>
+
+  <div class="grid">
+    <span>Manifest</span><span id="s-url">-</span>
+    <span>DRM</span><span id="s-drm">-</span>
+    <span>Đang phát</span><span id="s-track">-</span>
+    <span>Băng thông ước tính</span><span id="s-bw">-</span>
+  </div>
+  <div id="log"></div>
+
+  <script>
+    const LICENSE_URL = '/api/drm/clearkey/license';
+    const $ = (id) => document.getElementById(id);
+    const log = (msg, isErr) => { const d = document.createElement('div'); d.textContent = msg; if (isErr) d.className = 'err'; $('log').prepend(d); };
+
+    shaka.polyfill.installAll();
+    const video = $('video');
+    const player = new shaka.Player();
+    player.attach(video);
+
+    // Shaka only calls the license server when the content is encrypted, so the same config works for both versions.
+    player.configure({ drm: { servers: { 'org.w3.clearkey': LICENSE_URL } } });
+
+    // Show each license request/response in the log so you can see the DRM handshake.
+    player.getNetworkingEngine().registerResponseFilter((type, response) => {
+      if (type === shaka.net.NetworkingEngine.RequestType.LICENSE) {
+        log(`License ${response.status ?? ''} từ ${response.uri}: ${new TextDecoder().decode(response.data).replace(/"k":"[^"]+"/g, '"k":"…"')}`);
+      }
+    });
+
+    // Plain-language hints for the Shaka error codes you are likely to hit while testing.
+    const HINTS = {
+      1001: 'Không tải được file (HTTP lỗi, thường là 404). Kiểm tra tên trong media/packaged và đã chạy package.ps1 chưa.',
+      6007: 'Gọi license server thất bại: API đã tắt, KID không có trong drm.ContentKey, hoặc lỗi mạng.',
+      6010: 'Nội dung đã mã hóa nhưng manifest không có thông tin DRM. Với ClearKey, playlist HLS không có tag EXT-X-KEY nên player không biết phải hỏi license server. Bản -clearkey hãy chọn DASH.',
+      3016: 'Thẻ video báo lỗi khi phát. Với bản -clearkey thường là do key trả về không khớp nội dung (key trong DB sai).',
+    };
+
+    let failed = false;
+    let lastError = null;
+
+    // The same error can arrive both as an 'error' event and as the rejected load() promise: report it once.
+    function reportError(err) {
+      if (!err || err === lastError) return;
+      lastError = err;
+      failed = true;
+      $('s-drm').textContent = '-';
+      $('s-track').textContent = 'không phát được';
+      if (err.code) log(`Shaka error ${err.code}: ${HINTS[err.code] ?? JSON.stringify(err.data)}`, true);
+      else log(err.message || String(err), true);
+    }
+
+    player.addEventListener('error', (e) => reportError(e.detail));
+    player.addEventListener('adaptation', showTrack);
+    player.addEventListener('variantchanged', showTrack);
+    setInterval(() => {
+      const s = player.getStats();
+      if (s.estimatedBandwidth) $('s-bw').textContent = `${(s.estimatedBandwidth / 1e6).toFixed(2)} Mbps`;
+      if (failed) return;
+      const ks = player.keySystem();
+      $('s-drm').textContent = ks ? `${ks} (key từ SQL Server qua ${LICENSE_URL})` : 'không mã hóa';
+    }, 1000);
+
+    function showTrack() {
+      if (failed) return;
+      const t = player.getVariantTracks().find((v) => v.active);
+      if (t) $('s-track').textContent = `${t.height}p · ${(t.bandwidth / 1e6).toFixed(2)} Mbps · ${t.videoCodec}`;
+    }
+
+    function fillQualities() {
+      const sel = $('quality');
+      sel.length = 1;
+      const heights = [...new Set(player.getVariantTracks().map((t) => t.height))].sort((a, b) => b - a);
+      for (const h of heights) sel.add(new Option(`${h}p`, h));
+    }
+
+    $('quality').addEventListener('change', (e) => {
+      if (e.target.value === 'auto') {
+        player.configure({ abr: { enabled: true } });
+        return;
+      }
+      player.configure({ abr: { enabled: false } });
+      const t = player.getVariantTracks().find((v) => v.height === Number(e.target.value));
+      if (t) player.selectVariantTrack(t, /* clearBuffer */ true);
+    });
+
+    async function load(name, file) {
+      const url = `/media/${name}/${file}`;
+      $('s-url').textContent = url;
+      $('s-drm').textContent = '-';
+      $('s-track').textContent = '-';
+      failed = false;
+      lastError = null;
+      player.configure({ abr: { enabled: true } });
+      $('quality').value = 'auto';
+      await player.load(url);
+      fillQualities();
+      showTrack();
+      log(`Loaded ${url}`);
+    }
+
+    $('f').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = $('name').value.trim();
+      if (!name) return;
+      history.replaceState(null, '', `?name=${encodeURIComponent(name)}&format=${encodeURIComponent($('format').value)}`);
+      load(name, $('format').value).catch(reportError);
+    });
+
+    const q = new URLSearchParams(location.search);
+    if (q.get('name')) {
+      $('name').value = q.get('name');
+      if (q.get('format')) $('format').value = q.get('format');
+      $('f').requestSubmit();
+    }
+  </script>
+</body>
+</html>

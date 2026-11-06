@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Step 2 of the video pipeline: package the encoded renditions into CMAF (fMP4) segments with
   a DASH manifest (manifest.mpd) and an HLS master playlist (master.m3u8), optionally encrypted.
@@ -23,7 +23,7 @@ param(
     [switch]$ClearKey,
     [int]$SegmentSeconds = 4,
     [string]$SqlServer = '.\SQLEXPRESS',
-    [string]$Database = 'NetflixClone'
+    [string]$Database = 'HakuTV'
 )
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\_common.ps1"

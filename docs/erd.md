@@ -97,7 +97,7 @@ Bảng `Title` chỉ giữ dữ liệu không phụ thuộc ngôn ngữ. SP đ�
 `COALESCE(vi.Overview, en.Overview)`, `COALESCE(vi.Name, en.Name, t.OriginalTitle)`.
 Fallback theo từng trường vì TMDB hay có tên tiếng Việt nhưng thiếu mô tả. Chuỗi rỗng được lưu thành `NULL` (`NULLIF(x, '')`), để `COALESCE` hoạt động đúng.
 
-**Một bảng `Title` cho cả phim lẻ và series** (`TitleType`). Netflix trộn cả hai trong cùng một row ("Phổ biến trên Netflix"),
+**Một bảng `Title` cho cả phim lẻ và series** (`TitleType`). Trang browse trộn cả hai loại trong cùng một row ("Phổ biến"),
 nên một bảng giúp query browse không phải `UNION`. Cột chỉ dành cho phim lẻ (`RuntimeMinutes`) được để NULL với series.
 Season và Episode là bảng con của series.
 
