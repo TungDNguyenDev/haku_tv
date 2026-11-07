@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddSingleton<ISqlConnectionFactory>(new SqlConnectionFactory(connectionString));
         services.AddScoped<IContentKeyRepository, ContentKeyRepository>();
         services.AddScoped<ICatalogQueries, CatalogQueries>();
+        services.AddScoped<ITitleQueries, TitleQueries>();
         services.AddScoped<IPlaybackRepository, PlaybackRepository>();
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();

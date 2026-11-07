@@ -117,7 +117,11 @@ public class BrowsePlaybackDbTests
         Assert.Equal("Test series", topSeries.Name);                                   // vi missing -> en
         AssertRepeatsComeLast(feed, feed.Rows.Single(r => r.Key == "popular-series"), "top10-series");
         Assert.Equal("popular-series", feed.Rows[0].Key);                              // shown first although filled after the Top 10
-        Assert.NotNull(feed.Hero);
+        // Heroes: up to 5 released titles with a backdrop, newest first.
+        Assert.InRange(feed.Heroes.Count, 1, 5);
+        Assert.All(feed.Heroes, h => Assert.NotNull(h.BackdropPath));
+        var heroYears = feed.Heroes.Select(h => h.ReleaseYear ?? 0).ToList();
+        Assert.Equal(heroYears.OrderByDescending(y => y), heroYears);
 
         var kids = await queries.GetHomeAsync("en", maxMaturityAge: 12);
         Assert.DoesNotContain(kids.Rows.SelectMany(r => r.Items), c => c.TitleId == movieId);

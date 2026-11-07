@@ -25,9 +25,9 @@ export interface RatingChange {
   previous: Rating | null // to undo it if the API refuses
 }
 
-/** Every copy of a title on the page (a title can be in several rows, and be the hero). */
+/** Every copy of a title on the page (a title can be in several rows, and be one of the heroes). */
 function updateTitle(feed: HomeFeed, titleId: number, update: (title: { inMyList: boolean; myRating: Rating | null }) => void) {
-  if (feed.hero?.titleId === titleId) update(feed.hero)
+  for (const hero of feed.heroes) if (hero.titleId === titleId) update(hero)
   for (const row of feed.rows) for (const card of row.items) if (card.titleId === titleId) update(card)
 }
 

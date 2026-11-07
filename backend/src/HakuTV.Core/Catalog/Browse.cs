@@ -8,7 +8,8 @@ public interface ICatalogQueries
     Task<HomeFeed> GetHomeAsync(string languageCode, byte? maxMaturityAge, int? profileId = null, CancellationToken ct = default);
 }
 
-public sealed record HomeFeed(HeroTitle? Hero, IReadOnlyList<BrowseRow> Rows);
+/// <param name="Heroes">Billboard titles, newest release first (up to 5); the UI rotates through them.</param>
+public sealed record HomeFeed(IReadOnlyList<HeroTitle> Heroes, IReadOnlyList<BrowseRow> Rows);
 
 /// <param name="Layout">"standard" (16:9 backdrops), "top10" (ranked posters), "poster" (tall 2:3 posters).</param>
 public sealed record BrowseRow(string Key, string Name, string Layout, IReadOnlyList<TitleCard> Items);

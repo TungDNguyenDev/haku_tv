@@ -1,8 +1,11 @@
 import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import AppFooter from '../components/AppFooter'
 import AppHeader from '../components/AppHeader'
 import { HoverPreviewProvider } from '../components/browse/HoverPreview'
+import TitleDetailModal from '../components/detail/TitleDetailModal'
+import { openTitleId } from '../features/detail/detailRoute'
 import HeroBanner from '../components/HeroBanner'
 import TitleRow from '../components/TitleRow'
 import { selectLanguage } from '../features/auth/authSlice'
@@ -14,6 +17,7 @@ export default function BrowsePage() {
   const { status, feed, error } = useAppSelector((s) => s.browse)
   const lang = useAppSelector(selectLanguage)
   const t = useT()
+  const detailId = openTitleId(useLocation()) // /browse?title=123 opens the detail modal over the page
 
   // Load once per profile; coming back from the player reuses the feed already in the store.
   useEffect(() => {
@@ -32,7 +36,7 @@ export default function BrowsePage() {
 
       {(status === 'loading' || status === 'idle') && !feed && <BrowseSkeleton />}
 
-      {feed && !feed.hero && feed.rows.length === 0 && (
+      {feed && feed.heroes.length === 0 && feed.rows.length === 0 && (
         <Message
           title={t.browse.empty}
           detail={t.browse.emptyDetail}
@@ -40,11 +44,11 @@ export default function BrowsePage() {
         />
       )}
 
-      {feed?.hero && <HeroBanner hero={feed.hero} />}
+      {feed && feed.heroes.length > 0 && <HeroBanner heroes={feed.heroes} paused={detailId !== null} />}
 
       {feed && feed.rows.length > 0 && (
         // The first row slides up over the faded bottom of the hero.
-        <main className={`relative z-10 space-y-3 md:space-y-6 ${feed.hero ? '-mt-[7vw]' : 'pt-24'}`}>
+        <main className={`relative z-10 space-y-3 md:space-y-6 ${feed.heroes.length > 0 ? '-mt-[7vw]' : 'pt-24'}`}>
           <HoverPreviewProvider>
             {feed.rows.map((row) => (
               <TitleRow key={row.key} row={row} />
@@ -54,6 +58,8 @@ export default function BrowsePage() {
       )}
 
       {feed && <AppFooter />}
+
+      {detailId !== null && <TitleDetailModal titleId={detailId} />}
     </div>
   )
 }

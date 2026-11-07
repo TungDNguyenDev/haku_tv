@@ -154,7 +154,7 @@ function ProfileMenu() {
             </Link>
           )}
           <div className="px-4 pt-2 sm:hidden">
-            <LanguageSelect className="w-full [&>select]:w-full" />
+            <LanguageSelect className="w-full" />
           </div>
           <hr className="my-2 border-white/15" />
           <button

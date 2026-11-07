@@ -1,5 +1,5 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
-import { call, put, select, takeEvery, takeLatest } from 'redux-saga/effects'
+import { call, put, select, takeEvery, takeLatest, takeLeading } from 'redux-saga/effects'
 import type { RootState } from '../../app/store'
 import { apiError } from '../../services/http'
 import type { AuthResponse, Profile } from '../auth/authApi'
@@ -97,7 +97,8 @@ function* choose(action: PayloadAction<{ profileId: number; pin?: string }>) {
 }
 
 export function* profilesSaga() {
-  yield takeLatest(profilesRequested.type, fetchProfiles)
+  // takeLeading: a second request while the list is loading gets that same answer (StrictMode mounts twice in dev).
+  yield takeLeading(profilesRequested.type, fetchProfiles)
   yield takeEvery(profileCreateRequested.type, create)
   yield takeEvery(profileUpdateRequested.type, update)
   yield takeEvery(profileDeleteRequested.type, remove)

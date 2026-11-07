@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import type { TitleCard } from '../../features/browse/browseApi'
+import { CONTINUE_WATCHING, type TitleCard } from '../../features/browse/browseApi'
 import { placeholderStyle } from '../../features/browse/format'
+import { detailLink } from '../../features/detail/detailRoute'
 import { useT } from '../../i18n'
 import { tmdbImage } from '../../services/tmdbImage'
 import { useCardHover } from './previewContext'
@@ -11,6 +12,10 @@ import { useCardHover } from './previewContext'
 */
 
 const focusRing = 'outline-offset-2 focus-visible:outline-2 focus-visible:outline-white'
+
+// A card opens the detail modal; a Continue watching card plays straight away (that is what it is for).
+const cardLink = (titleId: number, rowKey?: string) =>
+  rowKey === CONTINUE_WATCHING ? { to: `/watch/${titleId}` } : detailLink(titleId)
 
 /** 16:9 backdrop with the title logo (TMDB backdrops have no text on them). Continue watching adds a progress bar. */
 export function BackdropCard({ card, rowKey }: { card: TitleCard; rowKey?: string }) {
@@ -26,9 +31,10 @@ export function BackdropCard({ card, rowKey }: { card: TitleCard; rowKey?: strin
 
   return (
     <Link
-      to={`/watch/${card.titleId}`}
+      {...cardLink(card.titleId, rowKey)}
       aria-label={card.name}
       {...hover}
+      // Widths mirrored by backdropCardWidth() in HoverPreview.tsx (every preview is sized from this card).
       className={`relative block aspect-video w-[44vw] shrink-0 snap-start overflow-hidden rounded-md bg-surface-raised sm:w-[30vw] md:w-[23vw] lg:w-[18.5vw] xl:w-[15.6vw] ${focusRing}`}
     >
       {image ? (
@@ -67,7 +73,7 @@ export function PosterCard({ card }: { card: TitleCard }) {
 
   return (
     <Link
-      to={`/watch/${card.titleId}`}
+      {...detailLink(card.titleId)}
       aria-label={card.name}
       {...hover}
       className={`relative block aspect-[2/3] w-[31vw] shrink-0 snap-start overflow-hidden rounded-md bg-surface-raised sm:w-[22vw] md:w-[17vw] lg:w-[13.8vw] xl:w-[11.6vw] ${focusRing}`}
@@ -92,7 +98,7 @@ export function RankCard({ card, rank }: { card: TitleCard; rank: number }) {
 
   return (
     <Link
-      to={`/watch/${card.titleId}`}
+      {...detailLink(card.titleId)}
       aria-label={t.title.rank(rank, card.name)}
       {...hover}
       className={`relative flex aspect-[4/3] w-[52vw] shrink-0 snap-start items-end sm:w-[37vw] md:w-[28vw] lg:w-[22vw] xl:w-[18.6vw] ${focusRing}`}

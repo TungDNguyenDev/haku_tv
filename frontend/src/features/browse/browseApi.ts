@@ -51,7 +51,7 @@ export interface BrowseRow {
 }
 
 export interface HomeFeed {
-  hero: HeroTitle | null
+  heroes: HeroTitle[] // billboard titles, newest release first; the banner rotates through them
   rows: BrowseRow[]
 }
 
