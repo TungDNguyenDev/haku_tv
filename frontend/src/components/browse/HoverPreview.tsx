@@ -5,10 +5,12 @@ import { useAppDispatch, useAppSelector } from '../../app/hooks'
 import { CONTINUE_WATCHING, type Rating, type TitleCard } from '../../features/browse/browseApi'
 import { continueWatchingRemoved, myListChanged, ratingChanged } from '../../features/browse/browseSlice'
 import { formatMaturity, formatRuntime, formatVote, placeholderStyle } from '../../features/browse/format'
+import { useDetailNavigation } from '../../features/detail/detailRoute'
 import { useT } from '../../i18n'
 import { tmdbImage } from '../../services/tmdbImage'
-import { CheckIcon, ChevronDownIcon, CloseIcon, DoubleThumbIcon, PlayIcon, PlusIcon, ThumbDownIcon, ThumbIcon } from '../icons'
+import { CheckIcon, CloseIcon, PlayIcon, PlusIcon } from '../icons'
 import { PreviewContext, type PreviewApi } from './previewContext'
+import { RateButton, RoundButton } from './TitleActions'
 
 /*
   Hover preview: resting on a card for a moment opens a bigger card with actions and details on top of it.
@@ -18,7 +20,25 @@ import { PreviewContext, type PreviewApi } from './previewContext'
   Only on devices with a real mouse; on touch screens a tap opens the title directly.
 */
 
+// Resting on a card this long opens its preview, so sweeping the mouse across the page does not pop cards open.
 const OPEN_DELAY_MS = 450
+
+/** Starts loading the preview's pictures during the wait, so they are already there when it opens. */
+function preload(card: TitleCard) {
+  for (const src of [tmdbImage(card.backdropPath, 'w780'), tmdbImage(card.logoPath, 'w300')]) {
+    if (src) new Image().src = src
+  }
+}
+
+/**
+ * Width of a 16:9 BackdropCard (cards.tsx: w-[44vw] sm:w-[30vw] md:w-[23vw] lg:w-[18.5vw] xl:w-[15.6vw]).
+ * innerWidth, like the CSS: media queries and vw both count the scrollbar.
+ */
+function backdropCardWidth() {
+  const width = window.innerWidth
+  const vw = width >= 1280 ? 15.6 : width >= 1024 ? 18.5 : width >= 768 ? 23 : width >= 640 ? 30 : 44
+  return (width * vw) / 100
+}
 
 interface OpenPreview {
   card: TitleCard
@@ -36,6 +56,7 @@ export function HoverPreviewProvider({ children }: { children: ReactNode }) {
       schedule(card, anchor, rowKey) {
         if (!canHover) return
         window.clearTimeout(timer.current)
+        preload(card)
         timer.current = window.setTimeout(() => setOpen({ card, rect: anchor.getBoundingClientRect(), rowKey }), OPEN_DELAY_MS)
       },
       cancel() {
@@ -75,6 +96,11 @@ function PreviewCard({ card, rect, rowKey, onClose }: OpenPreview & { onClose: (
   const dispatch = useAppDispatch()
   const t = useT()
   const play = () => navigate(`/watch/${card.titleId}`)
+  const { open: openDetail } = useDetailNavigation()
+  const moreInfo = () => {
+    onClose()
+    openDetail(card.titleId)
+  }
 
   // My List / rating change while the preview is open: read them from the store, not from the card it opened with.
   const live = useAppSelector((s) => findCard(s.browse.feed?.rows, card.titleId)) ?? card
@@ -90,10 +116,11 @@ function PreviewCard({ card, rect, rowKey, onClose }: OpenPreview & { onClose: (
       ? t.title.resumeEpisodeLong(card.resumeSeasonNumber, card.resumeEpisodeNumber)
       : null
 
-  // ~1.5x a standard card, centred on the hovered card, kept inside the viewport (first/last card of a row
-  // grows inwards instead of off-screen, like the real thing).
+  // ~1.5x a standard 16:9 card, whatever card was hovered (a narrow poster must not get a smaller preview),
+  // centred on the hovered card, kept inside the viewport (first/last card of a row grows inwards instead of
+  // off-screen, like the real thing).
   const viewport = document.documentElement.clientWidth
-  const width = Math.min(Math.max(rect.width * 1.5, 320), 460)
+  const width = Math.min(Math.max(backdropCardWidth() * 1.5, 320), 460)
   const imageHeight = (width * 9) / 16
   const centred = rect.left + rect.width / 2 - width / 2
   const left = Math.min(Math.max(centred, 16), viewport - width - 16)
@@ -111,10 +138,13 @@ function PreviewCard({ card, rect, rowKey, onClose }: OpenPreview & { onClose: (
       role="dialog"
       aria-label={card.name}
       onMouseLeave={onClose}
-      className="preview-in absolute z-40 overflow-hidden rounded-md bg-surface-raised shadow-2xl shadow-black/80"
+      // A click anywhere on the card opens the detail modal, except on the action buttons (they stop the click).
+      onClick={moreInfo}
+      className="preview-in absolute z-40 cursor-pointer overflow-hidden rounded-md bg-surface-raised shadow-2xl shadow-black/80"
       style={{ left: left + window.scrollX, top, width, transformOrigin: `${origin} center` }}
     >
-      <button type="button" onClick={play} aria-label={t.title.playName(card.name)} className="relative block aspect-video w-full">
+      {/* The click bubbles to the card (opens the detail); a real button so keyboard users can reach it too. */}
+      <button type="button" aria-label={`${t.title.moreInfo}: ${card.name}`} className="relative block aspect-video w-full">
         {backdrop ? (
           <img src={backdrop} alt="" className="size-full object-cover" />
         ) : (
@@ -129,7 +159,8 @@ function PreviewCard({ card, rect, rowKey, onClose }: OpenPreview & { onClose: (
       </button>
 
       <div className="space-y-3 px-4 pt-2 pb-4">
-        <div className="flex items-center gap-2">
+        {/* Clicks here stay with the buttons and don't reach the card. */}
+        <div className="flex w-fit items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <RoundButton label={t.title.play} primary onClick={play}>
             <PlayIcon className="size-5" />
           </RoundButton>
@@ -142,9 +173,6 @@ function PreviewCard({ card, rect, rowKey, onClose }: OpenPreview & { onClose: (
               <CloseIcon />
             </RoundButton>
           )}
-          <RoundButton label={t.title.moreInfoPhase} className="ml-auto">
-            <ChevronDownIcon />
-          </RoundButton>
         </div>
 
         {rowKey === CONTINUE_WATCHING && (resumeEpisode || card.resumePercent !== null) && (
@@ -177,98 +205,3 @@ function findCard(rows: { items: TitleCard[] }[] | undefined, titleId: number): 
   return undefined
 }
 
-const RATING_ICONS: Record<Rating, (filled: boolean) => ReactNode> = {
-  1: (filled) => <ThumbDownIcon filled={filled} />,
-  2: (filled) => <ThumbIcon filled={filled} />,
-  3: (filled) => <DoubleThumbIcon filled={filled} className="size-6" />,
-}
-
-/**
- * The three thumbs, like the real thing: the round button shows the current rating; resting on it (or focusing it)
- * slides out a pill with the three choices. Choosing the current rating again removes it.
- */
-function RateButton({ rating, onRate }: { rating: Rating | null; onRate: (rating: Rating | null) => void }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const choose = (value: Rating) => {
-    onRate(value === rating ? null : value)
-    setOpen(false)
-  }
-
-  return (
-    <div
-      className="relative"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false)
-      }}
-    >
-      <RoundButton
-        label={rating ? t.title.rated(t.title.ratings[rating]) : t.title.rate}
-        onClick={() => (rating ? onRate(null) : setOpen(true))}
-      >
-        {rating ? RATING_ICONS[rating](true) : <ThumbIcon />}
-      </RoundButton>
-      {/* Above the button, not over it: centred on it, the pill would cover My List and the buttons next to it.
-          The transparent bottom padding bridges the gap, so moving the mouse up to the pill keeps it open. */}
-      {open && (
-        <div className="absolute bottom-full left-1/2 z-10 -translate-x-1/2 pb-1.5">
-          <div
-            role="group"
-            aria-label={t.title.rate}
-            className="flex items-center gap-1 rounded-full bg-neutral-800 px-1.5 py-1 shadow-lg shadow-black/60 ring-1 ring-white/20"
-          >
-            {([1, 2, 3] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                title={t.title.ratings[value]}
-                aria-label={t.title.ratings[value]}
-                aria-pressed={rating === value}
-                onClick={() => choose(value)}
-                className="grid size-9 place-items-center rounded-full transition hover:scale-110 hover:bg-white/15"
-              >
-                {RATING_ICONS[value](rating === value)}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function RoundButton({
-  label,
-  primary = false,
-  onClick,
-  className = '',
-  children,
-}: {
-  label: string
-  primary?: boolean
-  onClick?: () => void
-  className?: string
-  children: ReactNode
-}) {
-  // Buttons for later phases stay visible (the layout is final) but do nothing yet; the tooltip says when they arrive.
-  const style = primary
-    ? 'bg-white text-black hover:bg-white/80'
-    : onClick
-      ? 'border-2 border-white/50 hover:border-white'
-      : 'cursor-not-allowed border-2 border-white/30 text-white/60'
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-disabled={!onClick}
-      onClick={onClick}
-      className={`grid size-9 shrink-0 place-items-center rounded-full transition ${style} ${className}`}
-    >
-      {children}
-    </button>
-  )
-}

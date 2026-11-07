@@ -8,7 +8,8 @@ describe('AuthPage', () => {
     const { store } = renderWithStore(<AuthPage mode="login" />)
     expect(screen.getByRole('heading', { name: 'Đăng nhập' })).toBeTruthy()
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Ngôn ngữ' }), { target: { value: 'en' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Ngôn ngữ' }))
+    fireEvent.click(screen.getByRole('option', { name: 'English' }))
 
     expect(screen.getByRole('heading', { name: 'Sign In' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Forgot password?' })).toBeTruthy()

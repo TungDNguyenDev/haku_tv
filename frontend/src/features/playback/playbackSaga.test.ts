@@ -27,7 +27,7 @@ function setup() {
     middleware: (getDefault) => getDefault({ thunk: false }).concat(sagaMiddleware),
   })
   sagaMiddleware.run(playbackSaga)
-  store.dispatch(homeSucceeded({ hero: null, rows: [] })) // the home page was loaded before Play
+  store.dispatch(homeSucceeded({ heroes: [], rows: [] })) // the home page was loaded before Play
   return store
 }
 

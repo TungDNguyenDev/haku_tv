@@ -36,8 +36,42 @@ body {
   animation: preview-in 200ms ease-out both;
 }
 
+/* Home billboard (components/HeroBanner.tsx): the text of each new slide fades in. */
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-in {
+  animation: hero-in 600ms ease-out both;
+}
+
+/* Dropdown menu of components/Select.tsx. */
+@keyframes select-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.select-in {
+  animation: select-in 120ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .preview-in {
+  .preview-in,
+  .select-in,
+  .hero-in {
     animation: none;
   }
 }

@@ -191,14 +191,15 @@ export const vi = {
     myList: 'Danh sách của tôi',
     scrollLeft: 'Cuộn trái',
     scrollRight: 'Cuộn phải',
+    heroLabel: 'Phim mới',
+    heroPrevious: 'Phim trước',
+    heroNext: 'Phim tiếp theo',
+    heroSlide: (n: number, count: number, name: string) => `Phim ${n}/${count}: ${name}`,
   },
 
   title: {
     play: 'Phát',
-    playName: (name: string) => `Phát ${name}`,
     moreInfo: 'Thông tin khác',
-    moreInfoLater: 'Trang chi tiết có ở Giai đoạn 5',
-    moreInfoPhase: 'Thông tin khác (Giai đoạn 5)',
     addToList: 'Thêm vào Danh sách của tôi',
     removeFromList: 'Xóa khỏi Danh sách của tôi',
     rate: 'Đánh giá',
@@ -217,6 +218,28 @@ export const vi = {
     series: 'Series',
     allAges: 'P', // Vietnamese rating for "all ages"
     runtime: (h: number, m: number) => (h === 0 ? `${m} phút` : m === 0 ? `${h} giờ` : `${h} giờ ${m} phút`),
+  },
+
+  detail: {
+    close: 'Đóng',
+    resume: 'Tiếp tục',
+    timeLeft: (minutes: number) => `Còn ${minutes} phút`,
+    seasonCount: (n: number) => `${n} phần`,
+    season: (n: number) => (n === 0 ? 'Tập đặc biệt' : `Phần ${n}`),
+    episodeCount: (n: number) => `${n} tập`,
+    episodes: 'Các tập',
+    episode: (n: number) => `Tập ${n}`,
+    minutes: (m: number) => `${m} phút`,
+    noVideo: 'Chưa có video',
+    cast: 'Diễn viên',
+    more: 'xem thêm',
+    genres: 'Thể loại',
+    directors: 'Đạo diễn',
+    creators: 'Sáng tạo',
+    moreLikeThis: 'Nội dung tương tự',
+    notFound: 'Không tìm thấy nội dung này, hoặc nội dung không dành cho hồ sơ này.',
+    loadFailed: 'Không tải được thông tin phim.',
+    seasonFailed: 'Không tải được danh sách tập.',
   },
 
   watch: {

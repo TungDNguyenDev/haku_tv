@@ -39,7 +39,7 @@ const row = (key: string, items: TitleCard[]): BrowseRow => ({ key, name: key, l
 
 // Title 1 is in two rows (and is the hero): every copy must change together.
 const feed = (): HomeFeed => ({
-  hero: { ...card(1), overview: null },
+  heroes: [{ ...card(1), overview: null }],
   rows: [
     row(CONTINUE_WATCHING, [card(5, { resumePercent: 40 }), card(6, { resumeSeasonNumber: 1, resumeEpisodeNumber: 2 })]),
     row('top10-movies', [card(1), card(2)]),
@@ -92,7 +92,7 @@ describe('My List, ratings and Continue watching (browseSlice + librarySaga)', (
 
     expect(rows(store).map((r) => r.key)).toEqual([CONTINUE_WATCHING, 'top10-movies', 'popular-movies', MY_LIST, 'genre-28'])
     expect(copiesOf(store, 1).every((c) => c.inMyList)).toBe(true)
-    expect(store.getState().browse.feed!.hero!.inMyList).toBe(true)
+    expect(store.getState().browse.feed!.heroes[0].inMyList).toBe(true)
 
     store.dispatch(myListChanged({ card: card(4), inList: true }))
     expect(rows(store)[3].items.map((c) => c.titleId)).toEqual([4, 1]) // newest first
@@ -136,7 +136,7 @@ describe('My List, ratings and Continue watching (browseSlice + librarySaga)', (
 
     store.dispatch(ratingChanged({ titleId: 1, rating: 2, previous: null }))
     expect(copiesOf(store, 1).map((c) => c.myRating)).toEqual([2, 2])
-    expect(store.getState().browse.feed!.hero!.myRating).toBe(2)
+    expect(store.getState().browse.feed!.heroes[0].myRating).toBe(2)
 
     store.dispatch(ratingChanged({ titleId: 1, rating: null, previous: 2 }))
     await settle()

@@ -11,7 +11,7 @@ namespace HakuTV.Api.Controllers;
 public sealed class BrowseController(ICatalogQueries catalog) : ControllerBase
 {
     /// <summary>
-    /// Hero title + content rows of the home screen. GET /api/browse/home?lang=vi
+    /// Hero titles + content rows of the home screen. GET /api/browse/home?lang=vi
     /// The maturity limit comes from the profile token (Kids = 12), never from the request,
     /// so a Kids profile cannot ask for adult rows by editing the URL.
     /// </summary>

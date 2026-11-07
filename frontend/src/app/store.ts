@@ -4,6 +4,7 @@ import accountReducer from '../features/account/accountSlice'
 import authReducer, { selectLanguage, sessionRestoreRequested } from '../features/auth/authSlice'
 import { configureSession, refreshSession } from '../features/auth/session'
 import browseReducer from '../features/browse/browseSlice'
+import detailReducer from '../features/detail/detailSlice'
 import playbackReducer from '../features/playback/playbackSlice'
 import profilesReducer from '../features/profiles/profilesSlice'
 import { setCurrentLanguage } from '../i18n'
@@ -19,6 +20,7 @@ export const store = configureStore({
     account: accountReducer,
     profiles: profilesReducer,
     browse: browseReducer,
+    detail: detailReducer,
     playback: playbackReducer,
   },
   middleware: (getDefault) => getDefault({ thunk: false }).concat(sagaMiddleware),

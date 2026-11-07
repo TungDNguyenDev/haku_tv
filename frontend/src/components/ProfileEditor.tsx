@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import type { AvatarKey, MaturityLimit, Profile } from '../features/auth/authApi'
 import { AVATAR_KEYS } from '../features/profiles/avatars'
@@ -12,12 +12,16 @@ import {
 import { useT } from '../i18n'
 import { LANGUAGES, type Language } from '../i18n/language'
 import Avatar from './Avatar'
+import Select from './Select'
 
 interface Props {
   profile: Profile | null // null = new profile
   canDelete: boolean
   onClose: () => void
 }
+
+// Trigger colors of the dropdowns, matching the name input.
+const FIELD = 'border-transparent bg-neutral-700 hover:border-white/40'
 
 // Create / edit / delete a profile in a dialog. Closes itself when the save succeeds.
 export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
@@ -32,6 +36,7 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
   const maturityLimits = isKids ? KIDS_MATURITY_LIMITS : ADULT_MATURITY_LIMITS
   const [confirmDelete, setConfirmDelete] = useState(false)
   const wasSaving = useRef(false)
+  const formId = useId()
 
   useEffect(() => {
     if (save.status === 'saving') wasSaving.current = true
@@ -92,36 +97,35 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
               </span>
             </label>
 
-            <label className="block text-sm">
-              <span className="mb-1 block text-muted">{t.profiles.maturity}</span>
-              <select
-                value={maturityLimit ?? ''}
-                onChange={(e) => setMaturityLimit(e.target.value === '' ? null : (Number(e.target.value) as MaturityLimit))}
-                className="w-full rounded-sm bg-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-white"
-              >
-                {maturityLimits.map((limit) => (
-                  <option key={limit ?? 'all'} value={limit ?? ''}>
-                    {maturityLabel(t, isKids, limit)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {/* Labelled by id rather than wrapped in <label>: a label would re-click the button when an option is picked. */}
+            <div className="text-sm">
+              <span id={`${formId}-maturity`} className="mb-1 block text-muted">
+                {t.profiles.maturity}
+              </span>
+              <Select<MaturityLimit>
+                value={maturityLimit}
+                options={maturityLimits.map((limit) => ({ value: limit, label: maturityLabel(t, isKids, limit) }))}
+                onChange={setMaturityLimit}
+                aria-labelledby={`${formId}-maturity`}
+                className="w-full"
+                triggerClassName={FIELD}
+              />
+            </div>
 
-            <label className="block text-sm">
-              <span className="mb-1 block text-muted">{t.common.language}</span>
-              <select
+            <div className="text-sm">
+              <span id={`${formId}-language`} className="mb-1 block text-muted">
+                {t.common.language}
+              </span>
+              <Select
                 value={languageCode}
-                onChange={(e) => setLanguageCode(e.target.value as Language)}
-                className="rounded-sm bg-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-white"
-              >
-                {LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
+                options={LANGUAGES.map((l) => ({ value: l.code, label: l.name }))}
+                onChange={setLanguageCode}
+                aria-labelledby={`${formId}-language`}
+                className="min-w-40"
+                triggerClassName={FIELD}
+              />
               <span className="mt-1 block text-xs text-muted">{t.profiles.languageHint}</span>
-            </label>
+            </div>
           </div>
         </div>
 

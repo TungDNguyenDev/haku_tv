@@ -3,7 +3,7 @@ import { useAppSelector } from '../app/hooks'
 import { CONTINUE_WATCHING, MY_LIST, type BrowseRow } from '../features/browse/browseApi'
 import { useT } from '../i18n'
 import { BackdropCard, PosterCard, RankCard } from './browse/cards'
-import { ChevronIcon } from './icons'
+import ArrowButton from './ArrowButton'
 
 // Horizontal row. Native scrolling (touch, trackpad, Shift+wheel) plus, on desktop, arrows that page by about
 // one screen and a small page indicator. The left arrow only appears once the row has been scrolled.
@@ -38,8 +38,8 @@ export default function TitleRow({ row }: { row: BrowseRow }) {
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' })
   }
 
-  const arrow =
-    'absolute inset-y-4 z-20 hidden w-[4%] min-w-10 place-items-center bg-black/50 opacity-0 transition group-hover/row:opacity-100 hover:bg-black/70 md:grid'
+  // In the side gutter (md:px-12), shown while the row is hovered or an arrow has focus.
+  const arrow = 'absolute top-1/2 z-20 hidden -translate-y-1/2 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 md:grid'
 
   return (
     <section className="group/row">
@@ -56,9 +56,7 @@ export default function TitleRow({ row }: { row: BrowseRow }) {
 
       <div className="relative">
         {!pages.atStart && (
-          <button type="button" aria-label={t.browse.scrollLeft} onClick={() => page(-1)} className={`${arrow} left-0 rounded-r`}>
-            <ChevronIcon direction="left" />
-          </button>
+          <ArrowButton direction="left" label={t.browse.scrollLeft} onClick={() => page(-1)} className={`${arrow} left-1`} />
         )}
         <div
           ref={scroller}
@@ -78,9 +76,7 @@ export default function TitleRow({ row }: { row: BrowseRow }) {
           )}
         </div>
         {!pages.atEnd && (
-          <button type="button" aria-label={t.browse.scrollRight} onClick={() => page(1)} className={`${arrow} right-0 rounded-l`}>
-            <ChevronIcon direction="right" />
-          </button>
+          <ArrowButton direction="right" label={t.browse.scrollRight} onClick={() => page(1)} className={`${arrow} right-1`} />
         )}
       </div>
     </section>

@@ -46,6 +46,16 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
   hoặc tập kế tiếp nếu tập trước đã xem xong (`playback.fn_ResumePoint`). Trang chủ có hàng "Tiếp tục xem nội dung của …"
   (thanh tiến độ, nhãn P1:T2, nút xóa khỏi hàng) và hàng "Danh sách của tôi"; nút Danh sách và đánh giá trong thẻ phóng to
   đổi giao diện ngay rồi mới gọi API, API lỗi thì hoàn tác. Chi tiết: [erd.md](erd.md#tiến-độ-xem-danh-sách-đánh-giá-schema-playback-giai-đoạn-4).
+- **Giai đoạn 5: xong.** Modal chi tiết phim nằm trên trang Browse, địa chỉ `/browse?title=123` (gửi link được, bấm Back là đóng).
+  Mở từ nút "Thông tin khác" trên hero, bấm vào thẻ (thẻ của hàng "Tiếp tục xem" thì phát luôn), hoặc bấm vào thẻ phóng to (trừ nhóm nút).
+  Modal có: Phát / "Tiếp tục P1:T2" (đúng chỗ Play sẽ tiếp tục), Danh sách, đánh giá, mô tả, diễn viên, thể loại, sáng tạo/đạo diễn;
+  series có danh sách tập theo phần (thanh tiến độ từng tập, tập đang xem được tô sáng, bấm là phát đúng tập đó);
+  "Nội dung tương tự" (chung nhiều thể loại nhất, cùng loại phim/series trước; bấm cả thẻ để chuyển sang phim đó).
+  Hero của trang chủ là 5 phim mới phát hành nhất, tự chuyển mỗi 8 giây (vạch chỉ báo và mũi tên để chuyển tay).
+  Một request cho cả modal (`GET /api/titles/{id}`, `catalog.usp_Title_GetDetail` trả 6 result set, gồm luôn các tập của phần mở đầu);
+  đổi phần thì gọi `GET /api/titles/{id}/seasons/{n}/episodes` (phần đã xem lại không gọi lại). Hai proc dùng chung `catalog.fn_SeasonEpisodes`.
+  Hồ sơ trẻ em mở phim vượt độ tuổi nhận 404 giống phim không tồn tại. Đầu modal dùng ảnh nền + logo, không nhúng trailer YouTube.
+  Hover preview và hàng Top 10 đã làm từ Giai đoạn 2.
 - **Gia cố bảo mật sau Giai đoạn 3: xong.** License DRM theo quyền xem từng phim, `/media` bằng cookie ký, cờ admin,
   dọn refresh token định kỳ, xử lý lỗi chung (xem "Các quyết định đã chốt" bên dưới).
 

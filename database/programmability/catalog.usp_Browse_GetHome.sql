@@ -1,8 +1,8 @@
 /*
-    Home page of the browse screen: one hero (billboard) title + the content rows, in one round trip.
+    Home page of the browse screen: the hero (billboard) titles + the content rows, in one round trip.
 
     Result sets:
-      1. Hero    0..1 row
+      1. Heroes  0..@HeroCount rows, newest release first (the UI rotates through them)
       2. Items   flat list (RowOrder, RowKey, RowName, Layout, Position, title card columns), ordered by RowOrder, Position.
                  The API groups it into rows. One flat set instead of one set per row: the number of genre rows is
                  data-driven, and a fixed set of result sets is easier to read with Dapper.
@@ -38,7 +38,8 @@ CREATE OR ALTER PROCEDURE catalog.usp_Browse_GetHome
     @ItemsPerRow    tinyint    = 20,
     @GenreRowCount  tinyint    = 6,
     @MinVoteCount   int        = 200,
-    @ProfileId      int        = NULL
+    @ProfileId      int        = NULL,
+    @HeroCount      tinyint    = 5
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -227,11 +228,10 @@ BEGIN
               ) AS x;
     END;
 
-    /* ---------- 1. Hero ---------- */
+    /* ---------- 1. Heroes ---------- */
 
-    -- Among the 10 most popular titles: prefer one with a backdrop and a playable video, and rotate daily
-    -- (CHECKSUM of id + date gives a stable pseudo-random order for the whole day, so a refresh does not flicker).
-    SELECT TOP (1)
+    -- The newest titles already released, newest first. Only titles with a backdrop: the billboard is a picture.
+    SELECT TOP (@HeroCount)
            t.TitleId,
            t.TitleType,
            txt.Name,
@@ -245,19 +245,15 @@ BEGIN
            CAST(CASE WHEN va.HasVideo = 1 THEN 1 ELSE 0 END AS bit) AS HasVideo,
            CAST(CASE WHEN ml.TitleId IS NULL THEN 0 ELSE 1 END AS bit) AS InMyList,
            rt.Rating                                                AS MyRating
-    FROM  (
-              SELECT TOP (10) v.TitleId
-              FROM   #visible AS v
-              ORDER BY v.Popularity DESC, v.TitleId
-          ) AS top10
-          INNER JOIN catalog.Title AS t ON t.TitleId = top10.TitleId
-          CROSS APPLY catalog.fn_TitleText(t.TitleId, @LanguageCode) AS txt
-          OUTER APPLY (SELECT TOP (1) 1 AS HasVideo FROM media.VideoAsset AS a WHERE a.TitleId = t.TitleId) AS va
-          LEFT JOIN playback.MyList AS ml ON ml.ProfileId = @ProfileId AND ml.TitleId = t.TitleId
-          LEFT JOIN playback.Rating AS rt ON rt.ProfileId = @ProfileId AND rt.TitleId = t.TitleId
-    ORDER BY CASE WHEN t.BackdropPath IS NULL THEN 1 ELSE 0 END,
-             CASE WHEN va.HasVideo IS NULL THEN 1 ELSE 0 END,
-             ABS(CHECKSUM(t.TitleId, @Today));
+    FROM   #visible AS v
+           INNER JOIN catalog.Title AS t ON t.TitleId = v.TitleId
+           CROSS APPLY catalog.fn_TitleText(t.TitleId, @LanguageCode) AS txt
+           OUTER APPLY (SELECT TOP (1) 1 AS HasVideo FROM media.VideoAsset AS a WHERE a.TitleId = t.TitleId) AS va
+           LEFT JOIN playback.MyList AS ml ON ml.ProfileId = @ProfileId AND ml.TitleId = t.TitleId
+           LEFT JOIN playback.Rating AS rt ON rt.ProfileId = @ProfileId AND rt.TitleId = t.TitleId
+    WHERE  v.ReleaseDate <= @Today
+      AND  t.BackdropPath IS NOT NULL
+    ORDER BY v.ReleaseDate DESC, v.TitleId;
 
     /* ---------- 2. Items ---------- */
 
