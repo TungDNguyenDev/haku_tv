@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import LanguageSelect from './LanguageSelect'
 
 // Shared layout of the signed-out pages (login, sign-up, forgot / reset password).
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
@@ -8,10 +9,11 @@ export function AuthShell({ title, children }: { title: string; children: ReactN
       {/* Background: soft red glows instead of a photo (the catalog images need a signed-in profile). */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_10%,rgba(229,9,20,0.35),transparent_55%),radial-gradient(ellipse_at_85%_90%,rgba(229,9,20,0.2),transparent_50%)]" />
 
-      <header className="relative px-4 py-6 md:px-12">
+      <header className="relative flex items-center justify-between gap-4 px-4 py-6 md:px-12">
         <Link to="/" className="text-3xl font-black tracking-tight text-brand md:text-4xl">
           HAKUTV
         </Link>
+        <LanguageSelect />
       </header>
 
       <main className="relative mx-auto mt-4 mb-16 w-full max-w-[450px] rounded-md bg-black/75 px-6 py-10 sm:px-14 sm:py-12">

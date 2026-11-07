@@ -2,20 +2,23 @@ import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import Avatar from '../components/Avatar'
+import LanguageSelect from '../components/LanguageSelect'
 import ProfileEditor from '../components/ProfileEditor'
 import type { Profile } from '../features/auth/authApi'
 import { logoutRequested } from '../features/auth/authSlice'
 import { MAX_PROFILES } from '../features/profiles/profilesApi'
 import { PinPrompt } from '../components/PinDialog'
+import { useT } from '../i18n'
 import { pinPromptClosed, pinPromptOpened, profileSelectRequested, profilesRequested } from '../features/profiles/profilesSlice'
 
-// "Ai đang xem?": pick a profile, or switch to manage mode to add / edit / delete them.
+// "Who's watching?": pick a profile, or switch to manage mode to add / edit / delete them.
 export default function ProfilesPage() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const location = useLocation()
   const { items, status, error, selectingId, pinPrompt } = useAppSelector((s) => s.profiles)
   const current = useAppSelector((s) => s.auth.profile)
+  const t = useT()
   const [manage, setManage] = useState(new URLSearchParams(location.search).has('manage'))
   const [editing, setEditing] = useState<Profile | 'new' | null>(null)
   // /profiles?unlock=<id> (the header's profile switcher for a locked profile): that profile is the one being chosen.
@@ -57,13 +60,17 @@ export default function ProfilesPage() {
     <div className="flex min-h-screen flex-col bg-surface">
       <header className="flex items-center justify-between px-4 py-5 md:px-12">
         <span className="text-3xl font-black tracking-tight text-brand">HAKUTV</span>
-        <button type="button" onClick={() => dispatch(logoutRequested())} className="text-sm text-muted hover:text-white">
-          Đăng xuất
-        </button>
+        <div className="flex items-center gap-5">
+          {/* With a profile in use the language is that profile's setting; before that it is picked here. */}
+          {!current && <LanguageSelect />}
+          <button type="button" onClick={() => dispatch(logoutRequested())} className="text-sm text-muted hover:text-white">
+            {t.common.signOut}
+          </button>
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center px-4 pb-24 text-center">
-        <h1 className="text-3xl font-medium md:text-5xl">{manage ? 'Quản lý hồ sơ' : 'Ai đang xem?'}</h1>
+        <h1 className="text-3xl font-medium md:text-5xl">{manage ? t.profiles.manageTitle : t.profiles.whoIsWatching}</h1>
 
         {status === 'loading' && items.length === 0 && (
           <div className="mt-12 size-10 animate-spin rounded-full border-4 border-white/15 border-t-brand" />
@@ -90,7 +97,7 @@ export default function ProfilesPage() {
                     </span>
                   )}
                   {!manage && p.hasPin && (
-                    <span className="absolute right-1.5 bottom-1.5 grid size-7 place-items-center rounded-full bg-black/70" title="Hồ sơ đã khóa">
+                    <span className="absolute right-1.5 bottom-1.5 grid size-7 place-items-center rounded-full bg-black/70" title={t.profiles.lockedProfile}>
                       <LockIcon />
                     </span>
                   )}
@@ -101,7 +108,7 @@ export default function ProfilesPage() {
                   )}
                 </span>
                 <span className="max-w-full truncate text-muted group-hover:text-white md:text-lg">{p.name}</span>
-                {p.isKids && <span className="-mt-2 text-xs font-semibold text-sky-300">Trẻ em</span>}
+                {p.isKids && <span className="-mt-2 text-xs font-semibold text-sky-300">{t.common.kids}</span>}
               </button>
             </li>
           ))}
@@ -112,7 +119,7 @@ export default function ProfilesPage() {
                 <span className="grid size-24 place-items-center rounded-md border-2 border-transparent text-6xl text-muted transition group-hover:bg-white/10 group-hover:text-white md:size-36 md:text-8xl">
                   +
                 </span>
-                <span className="text-muted group-hover:text-white md:text-lg">Thêm hồ sơ</span>
+                <span className="text-muted group-hover:text-white md:text-lg">{t.profiles.addProfile}</span>
               </button>
             </li>
           )}
@@ -125,7 +132,7 @@ export default function ProfilesPage() {
             manage ? 'border-white bg-white font-semibold text-black' : 'border-muted text-muted hover:border-white hover:text-white'
           }`}
         >
-          {manage ? 'Xong' : 'Quản lý hồ sơ'}
+          {manage ? t.profiles.done : t.common.manageProfiles}
         </button>
       </main>
 

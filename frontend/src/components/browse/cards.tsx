@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { TitleCard } from '../../features/browse/browseApi'
 import { placeholderStyle } from '../../features/browse/format'
+import { useT } from '../../i18n'
 import { tmdbImage } from '../../services/tmdbImage'
 import { useCardHover } from './previewContext'
 
@@ -73,11 +74,12 @@ export function PosterCard({ card }: { card: TitleCard }) {
 export function RankCard({ card, rank }: { card: TitleCard; rank: number }) {
   const hover = useCardHover<HTMLAnchorElement>(card)
   const image = tmdbImage(card.posterPath, 'w342')
+  const t = useT()
 
   return (
     <Link
       to={`/watch/${card.titleId}`}
-      aria-label={`Hạng ${rank}: ${card.name}`}
+      aria-label={t.title.rank(rank, card.name)}
       {...hover}
       className={`relative flex aspect-[4/3] w-[52vw] shrink-0 snap-start items-end sm:w-[37vw] md:w-[28vw] lg:w-[22vw] xl:w-[18.6vw] ${focusRing}`}
     >
@@ -113,9 +115,10 @@ export function RankCard({ card, rank }: { card: TitleCard; rank: number }) {
 }
 
 function NewBadge() {
+  const t = useT()
   return (
     <span className="absolute top-0 left-2 rounded-b-sm bg-brand px-1.5 pt-0.5 pb-1 text-[10px] font-bold tracking-wide uppercase shadow">
-      Mới
+      {t.title.isNew}
     </span>
   )
 }

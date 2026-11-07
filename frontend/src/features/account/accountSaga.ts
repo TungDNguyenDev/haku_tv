@@ -1,5 +1,6 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { all, call, put, takeEvery, takeLatest } from 'redux-saga/effects'
+import { currentLanguage, messages } from '../../i18n'
 import { apiError } from '../../services/http'
 import { sessionEnded } from '../auth/authSlice'
 import { rememberProfile } from '../auth/session'
@@ -62,7 +63,7 @@ function* revokeAll() {
 function* changePw(action: PayloadAction<{ currentPassword: string; newPassword: string }>) {
   try {
     yield call(changePassword, action.payload.currentPassword, action.payload.newPassword)
-    yield put(formFinished({ form: 'changePassword', ok: true, message: 'Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất.' }))
+    yield put(formFinished({ form: 'changePassword', ok: true, message: messages().account.passwordChanged }))
     yield put(accountRequested()) // refresh the device list
   } catch (err) {
     yield put(formFinished({ form: 'changePassword', ok: false, message: apiError(err).message }))
@@ -71,8 +72,9 @@ function* changePw(action: PayloadAction<{ currentPassword: string; newPassword:
 
 function* forgot(action: PayloadAction<string>) {
   try {
-    const message: string = yield call(forgotPassword, action.payload)
-    yield put(formFinished({ form: 'forgotPassword', ok: true, message }))
+    yield call(forgotPassword, action.payload, currentLanguage())
+    // Same answer whether the email exists or not (the client's text, so it follows the UI language).
+    yield put(formFinished({ form: 'forgotPassword', ok: true, message: messages().reset.sent }))
   } catch (err) {
     yield put(formFinished({ form: 'forgotPassword', ok: false, message: apiError(err).message }))
   }
@@ -91,7 +93,7 @@ function* pin(action: PayloadAction<{ profileId: number; password: string; pin: 
   try {
     const { profileId, password, pin: value } = action.payload
     yield call(setProfilePin, profileId, password, value)
-    yield put(formFinished({ form: 'profilePin', ok: true, message: value ? 'Đã khóa hồ sơ bằng mã PIN.' : 'Đã gỡ khóa hồ sơ.' }))
+    yield put(formFinished({ form: 'profilePin', ok: true, message: value ? messages().account.pinSet : messages().account.pinRemoved }))
     yield put(profilesRequested()) // hasPin changed
   } catch (err) {
     yield put(formFinished({ form: 'profilePin', ok: false, message: apiError(err).message }))

@@ -48,7 +48,7 @@ public sealed class AuthController(
         int accountId;
         try
         {
-            (accountId, _) = await accounts.RegisterAsync(email, hasher.HashPassword(new AccountLogin(), request.Password!), profileName, "vi", ct);
+            (accountId, _) = await accounts.RegisterAsync(email, hasher.HashPassword(new AccountLogin(), request.Password!), profileName, request.Language == "en" ? "en" : "vi", ct);
         }
         catch (IdentityRuleException ex) when (ex.Error == IdentityError.EmailTaken)
         {
@@ -182,7 +182,8 @@ public sealed class AuthController(
     private BadRequestObjectResult Problem400(string code, string message) => BadRequest(new ApiError(code, message));
 }
 
-public sealed record RegisterRequest(string? Email, string? Password, string? ProfileName);
+/// <summary>Language = UI language of the sign-up page; it becomes the first profile's language (vi or en).</summary>
+public sealed record RegisterRequest(string? Email, string? Password, string? ProfileName, string? Language);
 public sealed record LoginRequest(string? Email, string? Password);
 public sealed record RefreshRequest(int? ProfileId);
 

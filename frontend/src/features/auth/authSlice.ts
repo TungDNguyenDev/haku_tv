@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import { storedLanguage, type Language } from '../../i18n/language'
 import type { AuthResponse, Credentials, Profile } from './authApi'
 
 export interface AuthState {
@@ -10,6 +11,8 @@ export interface AuthState {
   expiresAt: string | null
   profile: Profile | null // the "who's watching" choice; null = account-level token only
   form: { status: 'idle' | 'loading' | 'failed'; error: string | null }
+  // UI language while no profile is chosen (login, profile picker): picked there, or the last profile's language.
+  preferredLanguage: Language
 }
 
 const initialState: AuthState = {
@@ -20,6 +23,7 @@ const initialState: AuthState = {
   expiresAt: null,
   profile: null,
   form: { status: 'idle', error: null },
+  preferredLanguage: storedLanguage(),
 }
 
 function applyTokens(state: AuthState, res: AuthResponse) {
@@ -29,6 +33,7 @@ function applyTokens(state: AuthState, res: AuthResponse) {
   state.accessToken = res.accessToken
   state.expiresAt = res.expiresAt
   state.profile = res.profile
+  if (res.profile) state.preferredLanguage = res.profile.languageCode
 }
 
 const authSlice = createSlice({
@@ -63,16 +68,24 @@ const authSlice = createSlice({
     },
     // The current profile was edited (name, kids, language): keep the token, refresh what the UI shows.
     currentProfileChanged(state, action: PayloadAction<Profile>) {
-      if (state.profile?.profileId === action.payload.profileId) state.profile = action.payload
+      if (state.profile?.profileId === action.payload.profileId) {
+        state.profile = action.payload
+        state.preferredLanguage = action.payload.languageCode
+      }
     },
     // The profile in use was deleted (manage mode): back to the picker. The old token expires within 15 minutes and
     // the next refresh no longer returns a profile, because the server re-reads it.
     currentProfileRemoved(state, action: PayloadAction<number>) {
       if (state.profile?.profileId === action.payload) state.profile = null
     },
+    // The language switcher of the signed-out pages.
+    languagePicked(state, action: PayloadAction<Language>) {
+      state.preferredLanguage = action.payload
+    },
     logoutRequested() {},
-    sessionEnded() {
-      return { ...initialState, status: 'anonymous' as const }
+    // Signed out: the login page keeps the language that was in use.
+    sessionEnded(state) {
+      return { ...initialState, status: 'anonymous' as const, preferredLanguage: state.preferredLanguage }
     },
   },
 })
@@ -80,8 +93,8 @@ const authSlice = createSlice({
 /** The admin link and /admin: admin accounts only, and never while a Kids profile is active. */
 export const selectCanAdmin = (s: { auth: AuthState }): boolean => s.auth.isAdmin && !s.auth.profile?.isKids
 
-/** Catalog language of the current profile (Vietnamese until a profile is chosen). */
-export const selectLanguage = (s: { auth: AuthState }): 'vi' | 'en' => s.auth.profile?.languageCode ?? 'vi'
+/** UI and catalog language: the current profile's, or the one picked on the signed-out pages. */
+export const selectLanguage = (s: { auth: AuthState }): Language => s.auth.profile?.languageCode ?? s.auth.preferredLanguage
 
 export const {
   sessionRestoreRequested,
@@ -94,6 +107,7 @@ export const {
   profileSelected,
   currentProfileChanged,
   currentProfileRemoved,
+  languagePicked,
   logoutRequested,
   sessionEnded,
 } = authSlice.actions

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import AppFooter from '../components/AppFooter'
@@ -17,17 +17,23 @@ import {
 import type { Profile } from '../features/auth/authApi'
 import { maturityLabel } from '../features/profiles/maturity'
 import { profilesRequested } from '../features/profiles/profilesSlice'
+import { useT } from '../i18n'
 
-const dateFormat = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
-const dateTimeFormat = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' })
-
-// "Tài khoản": details, password, signed-in devices, profiles & parental controls (maturity + PIN lock).
+// Account page: details, password, signed-in devices, profiles & parental controls (maturity + PIN lock).
 export default function AccountPage() {
   const dispatch = useAppDispatch()
   const { details, sessions, loading, error } = useAppSelector((s) => s.account)
   const profiles = useAppSelector((s) => s.profiles.items)
   const [pinFor, setPinFor] = useState<Profile | null>(null)
   const [confirmAll, setConfirmAll] = useState(false)
+  const t = useT()
+  const { dateFormat, dateTimeFormat } = useMemo(
+    () => ({
+      dateFormat: new Intl.DateTimeFormat(t.locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      dateTimeFormat: new Intl.DateTimeFormat(t.locale, { dateStyle: 'short', timeStyle: 'short' }),
+    }),
+    [t.locale],
+  )
 
   useEffect(() => {
     dispatch(accountRequested())
@@ -40,26 +46,26 @@ export default function AccountPage() {
     <div className="min-h-screen bg-surface">
       <AppHeader />
       <main className="mx-auto max-w-3xl px-4 pt-28 pb-8 md:px-8">
-        <h1 className="text-3xl font-bold md:text-4xl">Tài khoản</h1>
+        <h1 className="text-3xl font-bold md:text-4xl">{t.account.title}</h1>
         {details && (
-          <p className="mt-2 text-sm text-muted">Thành viên từ {dateFormat.format(new Date(details.createdAt))}</p>
+          <p className="mt-2 text-sm text-muted">{t.account.memberSince(dateFormat.format(new Date(details.createdAt)))}</p>
         )}
         {error && <p className="mt-4 text-sm text-amber-400">{error}</p>}
 
-        <Section title="Thông tin đăng nhập">
+        <Section title={t.account.loginInfo}>
           {loading && !details ? (
-            <p className="text-muted">Đang tải…</p>
+            <p className="text-muted">{t.common.loading}…</p>
           ) : (
             details && (
               <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-                <dt className="text-muted">Email</dt>
+                <dt className="text-muted">{t.account.email}</dt>
                 <dd className="break-all">{details.email}</dd>
-                <dt className="text-muted">Đăng nhập gần nhất</dt>
+                <dt className="text-muted">{t.account.lastLogin}</dt>
                 <dd>{details.lastLoginAt ? dateTimeFormat.format(new Date(details.lastLoginAt)) : '—'}</dd>
                 {details.isAdmin && (
                   <>
-                    <dt className="text-muted">Quyền</dt>
-                    <dd>Quản trị viên</dd>
+                    <dt className="text-muted">{t.account.role}</dt>
+                    <dd>{t.account.administrator}</dd>
                   </>
                 )}
               </dl>
@@ -67,20 +73,20 @@ export default function AccountPage() {
           )}
         </Section>
 
-        <Section title="Đổi mật khẩu">
+        <Section title={t.account.changePassword}>
           <ChangePasswordForm />
         </Section>
 
         <Section
-          title="Thiết bị đang đăng nhập"
+          title={t.account.devices}
           action={
             confirmAll ? (
               <button type="button" onClick={() => dispatch(allSessionsRevokeRequested())} className="text-sm font-semibold text-red-400 hover:underline">
-                Bấm lần nữa để đăng xuất tất cả
+                {t.account.confirmSignOutAll}
               </button>
             ) : (
               <button type="button" onClick={() => setConfirmAll(true)} className="text-sm text-muted hover:text-white hover:underline">
-                Đăng xuất khỏi mọi thiết bị
+                {t.account.signOutAll}
               </button>
             )
           }
@@ -91,11 +97,11 @@ export default function AccountPage() {
                 <DeviceIcon />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">
-                    {s.device}
-                    {s.isCurrent && <span className="ml-2 rounded bg-emerald-600/80 px-1.5 py-0.5 text-[11px] font-semibold">Thiết bị này</span>}
+                    {s.device || t.account.unknownDevice}
+                    {s.isCurrent && <span className="ml-2 rounded bg-emerald-600/80 px-1.5 py-0.5 text-[11px] font-semibold">{t.account.thisDevice}</span>}
                   </p>
                   <p className="text-xs text-muted">
-                    Đăng nhập {dateTimeFormat.format(new Date(s.startedAt))} · Hoạt động gần nhất {dateTimeFormat.format(new Date(s.lastSeenAt))}
+                    {t.account.sessionTimes(dateTimeFormat.format(new Date(s.startedAt)), dateTimeFormat.format(new Date(s.lastSeenAt)))}
                   </p>
                 </div>
                 {!s.isCurrent && (
@@ -104,21 +110,21 @@ export default function AccountPage() {
                     onClick={() => dispatch(sessionRevokeRequested(s.familyId))}
                     className="rounded border border-white/30 px-3 py-1 text-sm hover:border-white"
                   >
-                    Đăng xuất
+                    {t.common.signOut}
                   </button>
                 )}
               </li>
             ))}
-            {sessions.length === 0 && !loading && <li className="py-3 text-sm text-muted">Không có thiết bị nào.</li>}
+            {sessions.length === 0 && !loading && <li className="py-3 text-sm text-muted">{t.account.noDevices}</li>}
           </ul>
-          <p className="mt-3 text-xs text-muted">Thiết bị bị đăng xuất sẽ phải đăng nhập lại trong vòng 15 phút.</p>
+          <p className="mt-3 text-xs text-muted">{t.account.revokeNote}</p>
         </Section>
 
         <Section
-          title="Hồ sơ và kiểm soát của phụ huynh"
+          title={t.account.profilesTitle}
           action={
             <Link to="/profiles?manage" className="text-sm text-muted hover:text-white hover:underline">
-              Quản lý hồ sơ
+              {t.common.manageProfiles}
             </Link>
           }
         >
@@ -129,7 +135,7 @@ export default function AccountPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{p.name}</p>
                   <p className="text-xs text-muted">
-                    {maturityLabel(p.isKids, p.maturityLimit)} · {p.hasPin ? 'Đã khóa bằng PIN' : 'Không khóa'}
+                    {maturityLabel(t, p.isKids, p.maturityLimit)} · {p.hasPin ? t.account.pinLocked : t.account.notLocked}
                   </p>
                 </div>
                 <button
@@ -137,7 +143,7 @@ export default function AccountPage() {
                   onClick={() => setPinFor(p)}
                   className="rounded border border-white/30 px-3 py-1 text-sm hover:border-white"
                 >
-                  {p.hasPin ? 'Đổi / gỡ PIN' : 'Khóa bằng PIN'}
+                  {p.hasPin ? t.account.changePin : t.account.lockWithPin}
                 </button>
               </li>
             ))}
@@ -166,6 +172,7 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
 function ChangePasswordForm() {
   const dispatch = useAppDispatch()
   const form = useAppSelector((s) => s.account.forms.changePassword)
+  const t = useT()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -198,10 +205,10 @@ function ChangePasswordForm() {
 
   return (
     <form onSubmit={submit} className="grid max-w-md gap-3" noValidate>
-      <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Mật khẩu hiện tại" autoComplete="current-password" className={input} />
-      <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="Mật khẩu mới (tối thiểu 8 ký tự)" autoComplete="new-password" className={input} />
-      <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Nhập lại mật khẩu mới" autoComplete="new-password" className={input} />
-      {(mismatch || tooShort) && <p className="text-xs text-amber-400">{mismatch ? 'Hai mật khẩu mới chưa khớp.' : 'Mật khẩu mới tối thiểu 8 ký tự.'}</p>}
+      <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder={t.account.currentPassword} autoComplete="current-password" className={input} />
+      <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder={t.account.newPassword} autoComplete="new-password" className={input} />
+      <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t.account.confirmNewPassword} autoComplete="new-password" className={input} />
+      {(mismatch || tooShort) && <p className="text-xs text-amber-400">{mismatch ? t.account.newMismatch : t.account.newTooShort}</p>}
       {form.status === 'failed' && <FormAlert>{form.message}</FormAlert>}
       {form.status === 'done' && <FormAlert tone="success">{form.message}</FormAlert>}
       <button
@@ -209,7 +216,7 @@ function ChangePasswordForm() {
         disabled={form.status === 'saving' || !current || !next || !confirm || mismatch || tooShort}
         className="w-fit rounded-sm bg-white px-5 py-2 font-semibold text-black hover:bg-white/80 disabled:opacity-50"
       >
-        {form.status === 'saving' ? 'Đang lưu…' : 'Đổi mật khẩu'}
+        {form.status === 'saving' ? t.common.saving : t.account.changePassword}
       </button>
     </form>
   )
@@ -219,6 +226,7 @@ function ChangePasswordForm() {
 function ProfilePinDialog({ profile, onClose }: { profile: Profile; onClose: () => void }) {
   const dispatch = useAppDispatch()
   const form = useAppSelector((s) => s.account.forms.profilePin)
+  const t = useT()
   const [password, setPassword] = useState('')
   const [pin, setPin] = useState('')
 
@@ -233,14 +241,14 @@ function ProfilePinDialog({ profile, onClose }: { profile: Profile; onClose: () 
   const save = (value: string | null) => dispatch(profilePinRequested({ profileId: profile.profileId, password, pin: value }))
 
   return (
-    <Dialog label={`Khóa hồ sơ ${profile.name}`} onClose={onClose}>
-      <h2 className="mb-2 text-2xl font-bold">Khóa hồ sơ {profile.name}</h2>
-      <p className="mb-6 text-sm text-muted">Mỗi lần chọn hồ sơ này sẽ phải nhập mã PIN 4 số. Cần mật khẩu tài khoản để thay đổi.</p>
+    <Dialog label={t.account.lockTitle(profile.name)} onClose={onClose}>
+      <h2 className="mb-2 text-2xl font-bold">{t.account.lockTitle(profile.name)}</h2>
+      <p className="mb-6 text-sm text-muted">{t.account.lockIntro}</p>
       <input
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="Mật khẩu tài khoản"
+        placeholder={t.account.accountPassword}
         autoComplete="current-password"
         autoFocus
         className="mb-6 w-full rounded-sm bg-neutral-800 px-3 py-2 outline-none focus:ring-2 focus:ring-white"
@@ -254,7 +262,7 @@ function ProfilePinDialog({ profile, onClose }: { profile: Profile; onClose: () 
           onClick={() => save(pin)}
           className="rounded-sm bg-white px-5 py-2 font-semibold text-black hover:bg-white/80 disabled:opacity-50"
         >
-          {profile.hasPin ? 'Lưu PIN mới' : 'Khóa hồ sơ'}
+          {profile.hasPin ? t.account.saveNewPin : t.account.lock}
         </button>
         {profile.hasPin && (
           <button
@@ -263,11 +271,11 @@ function ProfilePinDialog({ profile, onClose }: { profile: Profile; onClose: () 
             onClick={() => save(null)}
             className="rounded-sm border border-red-400/60 px-5 py-2 text-red-300 hover:bg-red-500/10 disabled:opacity-50"
           >
-            Gỡ khóa
+            {t.account.unlock}
           </button>
         )}
         <button type="button" onClick={onClose} className="rounded-sm px-5 py-2 text-muted hover:text-white">
-          Hủy
+          {t.common.cancel}
         </button>
       </div>
     </Dialog>

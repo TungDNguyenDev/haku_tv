@@ -7,11 +7,13 @@ import HeroBanner from '../components/HeroBanner'
 import TitleRow from '../components/TitleRow'
 import { selectLanguage } from '../features/auth/authSlice'
 import { homeRequested } from '../features/browse/browseSlice'
+import { useT } from '../i18n'
 
 export default function BrowsePage() {
   const dispatch = useAppDispatch()
   const { status, feed, error } = useAppSelector((s) => s.browse)
   const lang = useAppSelector(selectLanguage)
+  const t = useT()
 
   // Load once per profile; coming back from the player reuses the feed already in the store.
   useEffect(() => {
@@ -25,15 +27,15 @@ export default function BrowsePage() {
       <AppHeader />
 
       {status === 'failed' && (
-        <Message title="Không tải được danh mục phim" detail={`${error}. API (.NET) và SQL Server đã chạy chưa?`} onRetry={reload} />
+        <Message title={t.browse.loadFailed} detail={error ?? ''} onRetry={reload} />
       )}
 
       {(status === 'loading' || status === 'idle') && !feed && <BrowseSkeleton />}
 
       {feed && !feed.hero && feed.rows.length === 0 && (
         <Message
-          title="Chưa có phim nào trong database"
-          detail="Chạy seeder TMDB (backend/tools/HakuTV.Seeder) hoặc dữ liệu mẫu database/dev/dev_catalog_seed.sql, rồi database/dev/attach_sample_video.sql."
+          title={t.browse.empty}
+          detail={t.browse.emptyDetail}
           onRetry={reload}
         />
       )}
@@ -57,20 +59,22 @@ export default function BrowsePage() {
 }
 
 function Message({ title, detail, onRetry }: { title: string; detail: string; onRetry: () => void }) {
+  const t = useT()
   return (
     <div className="mx-auto max-w-xl px-4 pt-40 text-center">
       <h1 className="text-2xl font-bold">{title}</h1>
       <p className="mt-3 text-sm text-muted">{detail}</p>
       <button type="button" onClick={onRetry} className="mt-6 rounded bg-brand px-5 py-2 font-semibold hover:bg-brand-hover">
-        Thử lại
+        {t.common.retry}
       </button>
     </div>
   )
 }
 
 function BrowseSkeleton() {
+  const t = useT()
   return (
-    <div className="animate-pulse" aria-label="Đang tải">
+    <div className="animate-pulse" aria-label={t.common.loading}>
       <div className="h-[56.25vw] max-h-[85vh] min-h-[460px] bg-surface-raised" />
       {[0, 1].map((r) => (
         <div key={r} className="mt-8 px-4 md:px-12">

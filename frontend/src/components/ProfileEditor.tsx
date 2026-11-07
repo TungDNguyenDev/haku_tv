@@ -2,13 +2,15 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import type { AvatarKey, MaturityLimit, Profile } from '../features/auth/authApi'
 import { AVATAR_KEYS } from '../features/profiles/avatars'
-import { ADULT_MATURITY_OPTIONS, KIDS_MATURITY_OPTIONS } from '../features/profiles/maturity'
+import { ADULT_MATURITY_LIMITS, KIDS_MATURITY_LIMITS, maturityLabel } from '../features/profiles/maturity'
 import {
   profileCreateRequested,
   profileDeleteRequested,
   profileSaveReset,
   profileUpdateRequested,
 } from '../features/profiles/profilesSlice'
+import { useT } from '../i18n'
+import { LANGUAGES, type Language } from '../i18n/language'
 import Avatar from './Avatar'
 
 interface Props {
@@ -21,12 +23,13 @@ interface Props {
 export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
   const dispatch = useAppDispatch()
   const save = useAppSelector((s) => s.profiles.save)
+  const t = useT()
   const [name, setName] = useState(profile?.name ?? '')
   const [isKids, setIsKids] = useState(profile?.isKids ?? false)
   const [avatarKey, setAvatarKey] = useState<AvatarKey>(profile?.avatarKey ?? 'blue')
-  const [languageCode, setLanguageCode] = useState<'vi' | 'en'>(profile?.languageCode ?? 'vi')
+  const [languageCode, setLanguageCode] = useState<Language>(profile?.languageCode ?? 'vi')
   const [maturityLimit, setMaturityLimit] = useState<MaturityLimit>(profile?.maturityLimit ?? null)
-  const maturityOptions = isKids ? KIDS_MATURITY_OPTIONS : ADULT_MATURITY_OPTIONS
+  const maturityLimits = isKids ? KIDS_MATURITY_LIMITS : ADULT_MATURITY_LIMITS
   const [confirmDelete, setConfirmDelete] = useState(false)
   const wasSaving = useRef(false)
 
@@ -63,10 +66,10 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
         onSubmit={submit}
         role="dialog"
         aria-modal="true"
-        aria-label={profile ? 'Chỉnh sửa hồ sơ' : 'Thêm hồ sơ'}
+        aria-label={profile ? t.profiles.editTitle : t.profiles.addProfile}
         className="w-full max-w-lg rounded-md bg-surface-raised p-6 shadow-2xl md:p-8"
       >
-        <h2 className="mb-6 text-2xl font-bold md:text-3xl">{profile ? 'Chỉnh sửa hồ sơ' : 'Thêm hồ sơ'}</h2>
+        <h2 className="mb-6 text-2xl font-bold md:text-3xl">{profile ? t.profiles.editTitle : t.profiles.addProfile}</h2>
 
         <div className="flex gap-5">
           <Avatar avatarKey={avatarKey} className="size-20 text-lg md:size-24" />
@@ -75,8 +78,8 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={50}
-              placeholder="Tên"
-              aria-label="Tên hồ sơ"
+              placeholder={t.profiles.name}
+              aria-label={t.profiles.nameLabel}
               autoFocus
               className="w-full rounded-sm bg-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-white"
             />
@@ -84,42 +87,46 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
             <label className="flex cursor-pointer items-center gap-3 text-sm">
               <input type="checkbox" checked={isKids} onChange={(e) => toggleKids(e.target.checked)} className="size-5 accent-brand" />
               <span>
-                Hồ sơ trẻ em
-                <span className="block text-xs text-muted">Giao diện trẻ em, không vào được trang quản trị.</span>
+                {t.profiles.kidsProfile}
+                <span className="block text-xs text-muted">{t.profiles.kidsHint}</span>
               </span>
             </label>
 
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Giới hạn độ tuổi</span>
+              <span className="mb-1 block text-muted">{t.profiles.maturity}</span>
               <select
                 value={maturityLimit ?? ''}
                 onChange={(e) => setMaturityLimit(e.target.value === '' ? null : (Number(e.target.value) as MaturityLimit))}
                 className="w-full rounded-sm bg-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-white"
               >
-                {maturityOptions.map((o) => (
-                  <option key={o.value ?? 'all'} value={o.value ?? ''}>
-                    {o.label}
+                {maturityLimits.map((limit) => (
+                  <option key={limit ?? 'all'} value={limit ?? ''}>
+                    {maturityLabel(t, isKids, limit)}
                   </option>
                 ))}
               </select>
             </label>
 
             <label className="block text-sm">
-              <span className="mb-1 block text-muted">Ngôn ngữ</span>
+              <span className="mb-1 block text-muted">{t.common.language}</span>
               <select
                 value={languageCode}
-                onChange={(e) => setLanguageCode(e.target.value as 'vi' | 'en')}
+                onChange={(e) => setLanguageCode(e.target.value as Language)}
                 className="rounded-sm bg-neutral-700 px-3 py-2 outline-none focus:ring-2 focus:ring-white"
               >
-                <option value="vi">Tiếng Việt</option>
-                <option value="en">English</option>
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.name}
+                  </option>
+                ))}
               </select>
+              <span className="mt-1 block text-xs text-muted">{t.profiles.languageHint}</span>
             </label>
           </div>
         </div>
 
         <fieldset className="mt-6">
-          <legend className="mb-2 text-sm text-muted">Ảnh đại diện</legend>
+          <legend className="mb-2 text-sm text-muted">{t.profiles.avatar}</legend>
           <div className="flex flex-wrap gap-2">
             {AVATAR_KEYS.map((key) => (
               <button
@@ -148,10 +155,10 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
             disabled={saving || !name.trim()}
             className="rounded-sm bg-white px-6 py-2 font-semibold text-black hover:bg-brand hover:text-white disabled:opacity-50"
           >
-            {saving ? 'Đang lưu…' : 'Lưu'}
+            {saving ? t.common.saving : t.common.save}
           </button>
           <button type="button" onClick={onClose} className="rounded-sm border border-white/50 px-6 py-2 text-muted hover:border-white hover:text-white">
-            Hủy
+            {t.common.cancel}
           </button>
 
           {profile && canDelete && (
@@ -161,7 +168,7 @@ export default function ProfileEditor({ profile, canDelete, onClose }: Props) {
               onClick={() => (confirmDelete ? dispatch(profileDeleteRequested(profile.profileId)) : setConfirmDelete(true))}
               className="ml-auto rounded-sm px-3 py-2 text-sm text-red-400 hover:bg-red-500/10"
             >
-              {confirmDelete ? 'Bấm lần nữa để xóa' : 'Xóa hồ sơ'}
+              {confirmDelete ? t.profiles.confirmDelete : t.profiles.delete}
             </button>
           )}
         </div>
