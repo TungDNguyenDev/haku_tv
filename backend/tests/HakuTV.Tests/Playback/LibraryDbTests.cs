@@ -129,6 +129,9 @@ public class LibraryDbTests
         var other = await NewProfileAsync();
 
         Assert.True(await _library.SetMyListAsync(profile, null, movieId, inList: true));
+        await using (var conn = new SqlConnection(TestDatabase.ConnectionString))   // a fast machine adds both in the same millisecond
+            await conn.ExecuteAsync("UPDATE playback.MyList SET AddedAt = DATEADD(MINUTE, -1, AddedAt) WHERE ProfileId = @profile",
+                new { profile });
         Assert.True(await _library.SetMyListAsync(profile, null, seriesId, inList: true));
         Assert.True(await _library.SetMyListAsync(profile, null, seriesId, inList: true));   // idempotent
         Assert.True(await _library.SetRatingAsync(profile, null, movieId, TitleRating.Love));
