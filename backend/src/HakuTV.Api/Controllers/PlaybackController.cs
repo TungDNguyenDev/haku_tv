@@ -35,7 +35,7 @@ public sealed class PlaybackController(
     public async Task<ActionResult<PlaybackResponse>> Get(int titleId, [FromQuery] int? episodeId, [FromQuery] string? lang,
         CancellationToken ct)
     {
-        var source = await playback.GetAsync(titleId, episodeId, CatalogLanguage.Normalize(lang), User.MaxMaturityAge(), ct);
+        var source = await playback.GetAsync(titleId, episodeId, CatalogLanguage.Normalize(lang), User.MaxMaturityAge(), User.ProfileId(), ct);
         if (source is null)
             return NotFound(new PlaybackError("no-video", "This title has no video yet."));
         if (!source.IsAllowed)
@@ -71,6 +71,7 @@ public sealed class PlaybackController(
             source.EpisodeNumber,
             source.EpisodeName,
             MediaStorage.DashManifestUrl(source.MediaPath),
+            source.StartPositionSeconds,
             source.IsEncrypted ? new PlaybackDrm(ClearKeySystem, licenseUrl) : null));
     }
 }
@@ -84,6 +85,7 @@ public sealed record PlaybackResponse(
     short? EpisodeNumber,
     string? EpisodeName,
     string ManifestUrl,
+    int StartPositionSeconds,
     PlaybackDrm? Drm);
 
 /// <summary>Phase 9 (Widevine) adds more key systems here; the player config is a map keySystem → license URL.</summary>

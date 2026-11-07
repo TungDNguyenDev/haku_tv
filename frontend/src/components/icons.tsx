@@ -60,3 +60,49 @@ export function BackIcon({ className = 'size-8' }: IconProps) {
     </svg>
   )
 }
+
+export function CheckIcon({ className = 'size-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true" className={className}>
+      <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function CloseIcon({ className = 'size-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true" className={className}>
+      <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+const THUMB =
+  'M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3zm0 0 4-8a3 3 0 0 1 3 3v4h5.5a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 18.3 21H7'
+
+/** Thumb down = the thumb up turned upside down. `filled` marks the chosen rating. */
+export function ThumbDownIcon({ className = 'size-5', filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true" className={className}>
+      <path d={THUMB} strokeLinejoin="round" transform="rotate(180 12 12)" />
+    </svg>
+  )
+}
+
+export function ThumbIcon({ className = 'size-5', filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true" className={className}>
+      <path d={THUMB} strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** "Love this": two thumbs, the back one smaller. */
+export function DoubleThumbIcon({ className = 'size-5', filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 28 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true" className={className}>
+      <path d={THUMB} strokeLinejoin="round" transform="translate(11 1) scale(0.7)" opacity="0.85" />
+      <path d={THUMB} strokeLinejoin="round" transform="translate(0 2) scale(0.92)" fill={filled ? 'currentColor' : 'var(--color-surface-raised)'} />
+    </svg>
+  )
+}

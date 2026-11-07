@@ -5,11 +5,13 @@ using HakuTV.Core.Catalog;
 using HakuTV.Core.Drm;
 using HakuTV.Core.Identity;
 using HakuTV.Core.Media;
+using HakuTV.Core.Playback;
 using HakuTV.Infrastructure.Identity;
 using HakuTV.Infrastructure.Catalog;
 using HakuTV.Infrastructure.Data;
 using HakuTV.Infrastructure.Drm;
 using HakuTV.Infrastructure.Media;
+using HakuTV.Infrastructure.Playback;
 
 namespace HakuTV.Infrastructure;
 
@@ -27,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IProfileRepository, ProfileRepository>();
+        services.AddScoped<ILibraryRepository, LibraryRepository>();
         return services;
     }
 }

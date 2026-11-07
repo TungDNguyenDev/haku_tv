@@ -1,7 +1,7 @@
 # ERD
 
 Sơ đồ dưới đây là thiết kế cho toàn hệ thống, nhưng **mỗi bảng chỉ được tạo ở giai đoạn cần đến nó** (cột "Giai đoạn").
-Giai đoạn 1 tạo schema `catalog`, Giai đoạn 2 tạo `media.VideoAsset`, Giai đoạn 3 tạo schema `identity`. Các bảng của schema `playback` chỉ được phác thảo trước để thấy chỗ nối, chưa chốt chi tiết.
+Giai đoạn 1 tạo schema `catalog`, Giai đoạn 2 tạo `media.VideoAsset`, Giai đoạn 3 tạo schema `identity`. Giai đoạn 4 tạo schema `playback`.
 
 ```mermaid
 erDiagram
@@ -88,7 +88,7 @@ erDiagram
 | `media` | VideoAsset (link Title/Episode tới thư mục đã đóng gói trong `media/packaged`) | **2** |
 | `drm` | ContentKey, được VideoAsset tham chiếu qua `ContentKeyId` | 0, nối ở 2 |
 | `identity` | Account, Profile, RefreshToken | **3** |
-| `playback` | WatchProgress, MyList, Rating | 4 |
+| `playback` | WatchProgress, MyList, Rating | **4** |
 | `stats` | DailyTitleViews (snapshot cho Top 10) | 5 |
 
 ## Các quyết định thiết kế
@@ -205,3 +205,32 @@ Browse và playback yêu cầu có `pid` (policy `Profile`) và lấy giới h�
 | `Profile.PinHash` | PIN 4 số được băm bằng PasswordHasher (PBKDF2): 10 000 giá trị băm SHA-256 thì dò trong tích tắc, PBKDF2 + rate limit thì không. API chỉ trả `HasPin` |
 | `Profile.MaturityLimit` + tính lại `MaxMaturityAge` | cột tính toán PERSISTED không ALTER được: `DROP COLUMN` rồi `ADD` lại với công thức mới `CASE WHEN IsKids = 1 THEN (7 hoặc 12) ELSE MaturityLimit END` |
 | `usp_RefreshToken_ListSessions` | "thiết bị" = một family refresh token; dùng window function: `FIRST_VALUE(UserAgent) OVER (PARTITION BY FamilyId ORDER BY CreatedAt DESC)`, `MIN/MAX(CreatedAt) OVER (...)` |
+
+## Tiến độ xem, danh sách, đánh giá (schema `playback`, Giai đoạn 4)
+
+| Bảng | Điểm đáng chú ý |
+|---|---|
+| `WatchProgress` | Một dòng cho mỗi (hồ sơ, phim, tập); `EpisodeId` NULL = phim lẻ. Unique index `(ProfileId, TitleId, EpisodeId)` coi các NULL là bằng nhau, nên mỗi hồ sơ chỉ có một dòng cho một phim lẻ. `IsFinished` được tính lúc ghi (≥ 95% thời lượng), nên khi đọc chỉ cần xem cờ này. `IX (ProfileId, UpdatedAt DESC)` cho hàng "Xem tiếp" |
+| `MyList` | PK `(ProfileId, TitleId)`; `IX (ProfileId, AddedAt DESC)` cho hàng "Danh sách của tôi" (mới thêm lên đầu) |
+| `Rating` | 1 = không dành cho tôi, 2 = thích, 3 = rất thích (`CHECK`). Dùng cho phần gợi ý ở Giai đoạn 7 |
+
+Cả ba bảng `ON DELETE CASCADE` theo hồ sơ (xóa hồ sơ hoặc tài khoản là xóa luôn lịch sử) và theo phim.
+`WatchProgress → Episode` là NO ACTION, cùng lý do với `VideoAsset`: SQL Server không cho thêm một đường cascade thứ hai từ Title.
+
+**Heartbeat** (`usp_WatchProgress_Save`): UPDATE trước, không có dòng nào thì INSERT, trong transaction với `UPDLOCK, HOLDLOCK`.
+Hai heartbeat cùng tạo dòng mới sẽ chạy lần lượt (khóa khoảng khóa), không cái nào lỗi trùng khóa. Proc chỉ ghi khi đúng phim/tập đó
+có video và nằm trong giới hạn tuổi của hồ sơ, nên hồ sơ trẻ em không ghi được tiến độ cho phim người lớn bằng cách đoán id.
+`ProfileId` và giới hạn tuổi luôn lấy từ token (`pid`, `mat`), không lấy từ request.
+
+**Xem tiếp ở đâu** (`playback.fn_ResumePoint`, inline TVF, dùng ở cả `usp_Playback_Get` và hàng "Xem tiếp"):
+lấy dòng tiến độ mới nhất của phim; chưa xem xong thì tiếp tục ở đó; một tập đã xem xong thì sang tập thường kế tiếp có video
+(bỏ qua tập đặc biệt, season 0); phim lẻ đã xem xong thì không có gì để tiếp tục. `usp_Playback_Get` dùng tập này làm khóa
+`ORDER BY` đầu tiên chứ không lọc theo nó, nên nếu video của tập đó bị gỡ thì vẫn quay về thứ tự thường.
+
+**Trang chủ**: hàng "Xem tiếp" (RowOrder 0) và "Danh sách của tôi" (RowOrder 6, sau "Phim thịnh hành") được đổ vào `#items` **sau cùng**,
+nên không đẩy phim nào ở các hàng khác xuống cuối: hai hàng cá nhân này cố ý lặp lại phim. Mỗi thẻ có thêm `InMyList` và `MyRating`
+(trạng thái nút), thẻ ở hàng "Xem tiếp" có `ResumePercent` và tập cần xem tiếp.
+
+**Phía giao diện**: nút Danh sách, đánh giá và xóa khỏi hàng "Xem tiếp" sửa ngay mọi bản sao của phim trên trang (một phim có thể nằm ở
+nhiều hàng). Sau đó saga mới gọi API; API lỗi thì gửi lại đúng action đó với `meta.undo` để hoàn tác, và saga bỏ qua action hoàn tác này
+(nếu không sẽ lặp vô hạn). Khi rời player: lưu vị trí xong mới đánh dấu trang chủ cần tải lại, nên hàng "Xem tiếp" luôn hiện vị trí mới nhất.

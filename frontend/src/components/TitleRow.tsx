@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { BrowseRow } from '../features/browse/browseApi'
+import { useAppSelector } from '../app/hooks'
+import { CONTINUE_WATCHING, MY_LIST, type BrowseRow } from '../features/browse/browseApi'
 import { useT } from '../i18n'
 import { BackdropCard, PosterCard, RankCard } from './browse/cards'
 import { ChevronIcon } from './icons'
@@ -9,6 +10,10 @@ import { ChevronIcon } from './icons'
 export default function TitleRow({ row }: { row: BrowseRow }) {
   const scroller = useRef<HTMLDivElement>(null)
   const t = useT()
+  const profileName = useAppSelector((s) => s.auth.profile?.name ?? '')
+  // The profile's own rows are named here: the My List row can be created on the page, without a name from the API.
+  const title =
+    row.key === CONTINUE_WATCHING ? t.browse.continueWatching(profileName) : row.key === MY_LIST ? t.browse.myList : row.name
   const [pages, setPages] = useState({ count: 1, current: 0, atStart: true, atEnd: true })
 
   const measure = useCallback(() => {
@@ -39,7 +44,7 @@ export default function TitleRow({ row }: { row: BrowseRow }) {
   return (
     <section className="group/row">
       <div className="flex items-end justify-between px-4 md:px-12">
-        <h2 className="text-lg font-bold md:text-[1.4rem]">{row.name}</h2>
+        <h2 className="text-lg font-bold md:text-[1.4rem]">{title}</h2>
         {pages.count > 1 && (
           <div className="mb-1 hidden gap-0.5 opacity-0 transition group-hover/row:opacity-100 md:flex" aria-hidden="true">
             {Array.from({ length: pages.count }, (_, i) => (
@@ -68,7 +73,7 @@ export default function TitleRow({ row }: { row: BrowseRow }) {
             ) : row.layout === 'poster' ? (
               <PosterCard key={card.titleId} card={card} />
             ) : (
-              <BackdropCard key={card.titleId} card={card} />
+              <BackdropCard key={card.titleId} card={card} rowKey={row.key} />
             ),
           )}
         </div>

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import type { TitleCard } from '../../features/browse/browseApi'
+import { useAppDispatch, useAppSelector } from '../../app/hooks'
+import { CONTINUE_WATCHING, type Rating, type TitleCard } from '../../features/browse/browseApi'
+import { continueWatchingRemoved, myListChanged, ratingChanged } from '../../features/browse/browseSlice'
 import { formatMaturity, formatRuntime, formatVote, placeholderStyle } from '../../features/browse/format'
 import { useT } from '../../i18n'
 import { tmdbImage } from '../../services/tmdbImage'
-import { ChevronDownIcon, PlayIcon, PlusIcon, ThumbUpIcon } from '../icons'
+import { CheckIcon, ChevronDownIcon, CloseIcon, DoubleThumbIcon, PlayIcon, PlusIcon, ThumbDownIcon, ThumbIcon } from '../icons'
 import { PreviewContext, type PreviewApi } from './previewContext'
 
 /*
@@ -21,6 +23,7 @@ const OPEN_DELAY_MS = 450
 interface OpenPreview {
   card: TitleCard
   rect: DOMRect
+  rowKey?: string
 }
 
 export function HoverPreviewProvider({ children }: { children: ReactNode }) {
@@ -30,10 +33,10 @@ export function HoverPreviewProvider({ children }: { children: ReactNode }) {
   const api = useMemo<PreviewApi>(() => {
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches
     return {
-      schedule(card, anchor) {
+      schedule(card, anchor, rowKey) {
         if (!canHover) return
         window.clearTimeout(timer.current)
-        timer.current = window.setTimeout(() => setOpen({ card, rect: anchor.getBoundingClientRect() }), OPEN_DELAY_MS)
+        timer.current = window.setTimeout(() => setOpen({ card, rect: anchor.getBoundingClientRect(), rowKey }), OPEN_DELAY_MS)
       },
       cancel() {
         window.clearTimeout(timer.current)
@@ -67,10 +70,25 @@ export function HoverPreviewProvider({ children }: { children: ReactNode }) {
   )
 }
 
-function PreviewCard({ card, rect, onClose }: OpenPreview & { onClose: () => void }) {
+function PreviewCard({ card, rect, rowKey, onClose }: OpenPreview & { onClose: () => void }) {
   const navigate = useNavigate()
+  const dispatch = useAppDispatch()
   const t = useT()
   const play = () => navigate(`/watch/${card.titleId}`)
+
+  // My List / rating change while the preview is open: read them from the store, not from the card it opened with.
+  const live = useAppSelector((s) => findCard(s.browse.feed?.rows, card.titleId)) ?? card
+  const { inMyList, myRating } = live
+  const toggleList = () => dispatch(myListChanged({ card, inList: !inMyList }))
+  const rate = (rating: Rating | null) => dispatch(ratingChanged({ titleId: card.titleId, rating, previous: myRating }))
+  const removeFromRow = () => {
+    dispatch(continueWatchingRemoved({ titleId: card.titleId }))
+    onClose()
+  }
+  const resumeEpisode =
+    rowKey === CONTINUE_WATCHING && card.resumeSeasonNumber !== null && card.resumeEpisodeNumber !== null
+      ? t.title.resumeEpisodeLong(card.resumeSeasonNumber, card.resumeEpisodeNumber)
+      : null
 
   // ~1.5x a standard card, centred on the hovered card, kept inside the viewport (first/last card of a row
   // grows inwards instead of off-screen, like the real thing).
@@ -115,16 +133,30 @@ function PreviewCard({ card, rect, onClose }: OpenPreview & { onClose: () => voi
           <RoundButton label={t.title.play} primary onClick={play}>
             <PlayIcon className="size-5" />
           </RoundButton>
-          <RoundButton label={t.title.addToList}>
-            <PlusIcon />
+          <RoundButton label={inMyList ? t.title.removeFromList : t.title.addToList} onClick={toggleList}>
+            {inMyList ? <CheckIcon /> : <PlusIcon />}
           </RoundButton>
-          <RoundButton label={t.title.rate}>
-            <ThumbUpIcon />
-          </RoundButton>
+          <RateButton rating={myRating} onRate={rate} />
+          {rowKey === CONTINUE_WATCHING && (
+            <RoundButton label={t.title.removeFromRow} onClick={removeFromRow}>
+              <CloseIcon />
+            </RoundButton>
+          )}
           <RoundButton label={t.title.moreInfoPhase} className="ml-auto">
             <ChevronDownIcon />
           </RoundButton>
         </div>
+
+        {rowKey === CONTINUE_WATCHING && (resumeEpisode || card.resumePercent !== null) && (
+          <div className="flex items-center gap-3 text-sm">
+            {card.resumePercent !== null && (
+              <div className="h-1 flex-1 bg-white/30" aria-hidden="true">
+                <div className="h-full bg-brand" style={{ width: `${card.resumePercent}%` }} />
+              </div>
+            )}
+            {resumeEpisode && <span className="shrink-0 text-muted">{resumeEpisode}</span>}
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           {vote && <span className="font-semibold text-green-400">★ {vote}</span>}
@@ -136,6 +168,74 @@ function PreviewCard({ card, rect, onClose }: OpenPreview & { onClose: () => voi
 
         {card.genres && <p className="text-sm text-white/90">{card.genres}</p>}
       </div>
+    </div>
+  )
+}
+
+function findCard(rows: { items: TitleCard[] }[] | undefined, titleId: number): TitleCard | undefined {
+  for (const row of rows ?? []) for (const c of row.items) if (c.titleId === titleId) return c
+  return undefined
+}
+
+const RATING_ICONS: Record<Rating, (filled: boolean) => ReactNode> = {
+  1: (filled) => <ThumbDownIcon filled={filled} />,
+  2: (filled) => <ThumbIcon filled={filled} />,
+  3: (filled) => <DoubleThumbIcon filled={filled} className="size-6" />,
+}
+
+/**
+ * The three thumbs, like the real thing: the round button shows the current rating; resting on it (or focusing it)
+ * slides out a pill with the three choices. Choosing the current rating again removes it.
+ */
+function RateButton({ rating, onRate }: { rating: Rating | null; onRate: (rating: Rating | null) => void }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const choose = (value: Rating) => {
+    onRate(value === rating ? null : value)
+    setOpen(false)
+  }
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false)
+      }}
+    >
+      <RoundButton
+        label={rating ? t.title.rated(t.title.ratings[rating]) : t.title.rate}
+        onClick={() => (rating ? onRate(null) : setOpen(true))}
+      >
+        {rating ? RATING_ICONS[rating](true) : <ThumbIcon />}
+      </RoundButton>
+      {/* Above the button, not over it: centred on it, the pill would cover My List and the buttons next to it.
+          The transparent bottom padding bridges the gap, so moving the mouse up to the pill keeps it open. */}
+      {open && (
+        <div className="absolute bottom-full left-1/2 z-10 -translate-x-1/2 pb-1.5">
+          <div
+            role="group"
+            aria-label={t.title.rate}
+            className="flex items-center gap-1 rounded-full bg-neutral-800 px-1.5 py-1 shadow-lg shadow-black/60 ring-1 ring-white/20"
+          >
+            {([1, 2, 3] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                title={t.title.ratings[value]}
+                aria-label={t.title.ratings[value]}
+                aria-pressed={rating === value}
+                onClick={() => choose(value)}
+                className="grid size-9 place-items-center rounded-full transition hover:scale-110 hover:bg-white/15"
+              >
+                {RATING_ICONS[value](rating === value)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

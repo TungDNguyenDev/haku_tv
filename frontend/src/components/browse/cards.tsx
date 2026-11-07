@@ -12,9 +12,15 @@ import { useCardHover } from './previewContext'
 
 const focusRing = 'outline-offset-2 focus-visible:outline-2 focus-visible:outline-white'
 
-/** 16:9 backdrop with the title logo (TMDB backdrops have no text on them). */
-export function BackdropCard({ card }: { card: TitleCard }) {
-  const hover = useCardHover<HTMLAnchorElement>(card)
+/** 16:9 backdrop with the title logo (TMDB backdrops have no text on them). Continue watching adds a progress bar. */
+export function BackdropCard({ card, rowKey }: { card: TitleCard; rowKey?: string }) {
+  const hover = useCardHover<HTMLAnchorElement>(card, rowKey)
+  const t = useT()
+  const resumeEpisode =
+    card.resumeEpisodeNumber !== null && card.resumeSeasonNumber !== null
+      ? t.title.resumeEpisode(card.resumeSeasonNumber, card.resumeEpisodeNumber)
+      : null
+  const hasProgress = card.resumePercent !== null || resumeEpisode !== null
   const image = tmdbImage(card.backdropPath, 'w780')
   const logo = tmdbImage(card.logoPath, 'w300')
 
@@ -36,12 +42,20 @@ export function BackdropCard({ card }: { card: TitleCard }) {
           src={logo}
           alt=""
           loading="lazy"
-          className="absolute bottom-[8%] left-[6%] max-h-[40%] max-w-[58%] object-contain object-left-bottom drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]"
+          className={`absolute ${hasProgress ? 'bottom-[14%]' : 'bottom-[8%]'} left-[6%] max-h-[40%] max-w-[58%] object-contain object-left-bottom drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]`}
         />
       ) : (
-        <p className="absolute bottom-[8%] left-[6%] line-clamp-2 max-w-[85%] text-sm font-bold drop-shadow md:text-base">{card.name}</p>
+        <p className={`absolute ${hasProgress ? 'bottom-[14%]' : 'bottom-[8%]'} left-[6%] line-clamp-2 max-w-[85%] text-sm font-bold drop-shadow md:text-base`}>{card.name}</p>
       )}
-      {card.isRecent && <NewBadge />}
+      {card.isRecent && !hasProgress && <NewBadge />}
+      {resumeEpisode && (
+        <span className="absolute top-1.5 right-1.5 rounded-sm bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold">{resumeEpisode}</span>
+      )}
+      {hasProgress && (
+        <div className="absolute inset-x-[6%] bottom-[5%] h-[3px] bg-white/35" aria-hidden="true">
+          <div className="h-full bg-brand" style={{ width: `${card.resumePercent ?? 0}%` }} />
+        </div>
+      )}
     </Link>
   )
 }

@@ -20,15 +20,25 @@
     @MaxMaturityAge: NULL = no filter (adult profile). Phase 3 passes 12 for Kids profiles.
                      MaturityAge NULL means "unknown rating" and is treated as 18.
 
+    @ProfileId (Phase 4): adds the profile's own rows and card state. NULL = no personal data.
+      continue-watching  first row: titles with an unfinished movie/episode or a next episode to watch
+                         (playback.fn_ResumePoint), last watched first. Cards carry the resume position.
+      my-list            after "Popular movies": the profile's saved titles, newest first.
+      Both are filled LAST, so they never push titles down in the other rows: the personal rows repeat titles
+      on purpose (that is the point of them).
+      Every card and the hero also carry InMyList and MyRating, so the UI shows the right button state.
+
     EXEC catalog.usp_Browse_GetHome @LanguageCode = 'vi';
     EXEC catalog.usp_Browse_GetHome @LanguageCode = 'en', @MaxMaturityAge = 12;
+    EXEC catalog.usp_Browse_GetHome @LanguageCode = 'vi', @ProfileId = 3;
 */
 CREATE OR ALTER PROCEDURE catalog.usp_Browse_GetHome
     @LanguageCode   varchar(5) = 'vi',
     @MaxMaturityAge tinyint    = NULL,
     @ItemsPerRow    tinyint    = 20,
     @GenreRowCount  tinyint    = 6,
-    @MinVoteCount   int        = 200
+    @MinVoteCount   int        = 200,
+    @ProfileId      int        = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -75,7 +85,9 @@ BEGIN
 
     INSERT INTO #rows (RowOrder, RowKey, RowName, Layout)
     SELECT r.RowOrder, r.RowKey, CASE WHEN @Vi = 1 THEN r.NameVi ELSE r.NameEn END, r.Layout
-    FROM  (VALUES (1,  'popular-series', N'Series thịnh hành',         N'Popular TV Shows',     'standard'),
+    FROM  (VALUES (0,  'continue-watching', N'Xem tiếp',               N'Continue Watching',    'standard'),
+                  (6,  'my-list',        N'Danh sách của tôi',         N'My List',              'standard'),
+                  (1,  'popular-series', N'Series thịnh hành',         N'Popular TV Shows',     'standard'),
                   (2,  'top10-movies',   N'Top 10 phim lẻ hôm nay',    N'Top 10 Movies Today',  'top10'),
                   (3,  'new-releases',   N'Mới phát hành',             N'New Releases',         'standard'),
                   (4,  'top-rated',      N'Được đánh giá cao nhất',    N'Top Rated',            'poster'),
@@ -182,6 +194,39 @@ BEGIN
            ) AS x
     WHERE  r.GenreId IS NOT NULL;
 
+    /* ---------- Personal rows (filled last: they must not push titles down in the rows above) ---------- */
+
+    IF @ProfileId IS NOT NULL
+    BEGIN
+        -- Continue watching: one card per title, by the profile's latest activity in it. A title only counts once
+        -- it has really been started (10 s), or when a finished episode has a next one.
+        INSERT INTO #items (RowOrder, Position, TitleId)
+        SELECT 0, ROW_NUMBER() OVER (ORDER BY x.LastWatchedAt DESC, x.TitleId), x.TitleId
+        FROM  (
+                  SELECT TOP (@ItemsPerRow) a.TitleId, a.LastWatchedAt
+                  FROM  (
+                            SELECT wp.TitleId, MAX(wp.UpdatedAt) AS LastWatchedAt
+                            FROM   playback.WatchProgress AS wp
+                            WHERE  wp.ProfileId = @ProfileId          -- seek on IX_WatchProgress_Profile_UpdatedAt
+                            GROUP BY wp.TitleId
+                        ) AS a
+                        INNER JOIN #visible AS v ON v.TitleId = a.TitleId
+                        CROSS APPLY playback.fn_ResumePoint(@ProfileId, a.TitleId) AS rp
+                  WHERE  rp.IsNextEpisode = 1 OR rp.PositionSeconds >= 10
+                  ORDER BY a.LastWatchedAt DESC, a.TitleId
+              ) AS x;
+
+        INSERT INTO #items (RowOrder, Position, TitleId)
+        SELECT 6, ROW_NUMBER() OVER (ORDER BY x.AddedAt DESC, x.TitleId), x.TitleId
+        FROM  (
+                  SELECT TOP (@ItemsPerRow) ml.TitleId, ml.AddedAt
+                  FROM   playback.MyList AS ml
+                         INNER JOIN #visible AS v ON v.TitleId = ml.TitleId
+                  WHERE  ml.ProfileId = @ProfileId                      -- seek on IX_MyList_Profile_AddedAt
+                  ORDER BY ml.AddedAt DESC, ml.TitleId
+              ) AS x;
+    END;
+
     /* ---------- 1. Hero ---------- */
 
     -- Among the 10 most popular titles: prefer one with a backdrop and a playable video, and rotate daily
@@ -197,7 +242,9 @@ BEGIN
            t.MaturityAge,
            YEAR(t.ReleaseDate)                                    AS ReleaseYear,
            t.VoteAverage,
-           CAST(CASE WHEN va.HasVideo = 1 THEN 1 ELSE 0 END AS bit) AS HasVideo
+           CAST(CASE WHEN va.HasVideo = 1 THEN 1 ELSE 0 END AS bit) AS HasVideo,
+           CAST(CASE WHEN ml.TitleId IS NULL THEN 0 ELSE 1 END AS bit) AS InMyList,
+           rt.Rating                                                AS MyRating
     FROM  (
               SELECT TOP (10) v.TitleId
               FROM   #visible AS v
@@ -206,6 +253,8 @@ BEGIN
           INNER JOIN catalog.Title AS t ON t.TitleId = top10.TitleId
           CROSS APPLY catalog.fn_TitleText(t.TitleId, @LanguageCode) AS txt
           OUTER APPLY (SELECT TOP (1) 1 AS HasVideo FROM media.VideoAsset AS a WHERE a.TitleId = t.TitleId) AS va
+          LEFT JOIN playback.MyList AS ml ON ml.ProfileId = @ProfileId AND ml.TitleId = t.TitleId
+          LEFT JOIN playback.Rating AS rt ON rt.ProfileId = @ProfileId AND rt.TitleId = t.TitleId
     ORDER BY CASE WHEN t.BackdropPath IS NULL THEN 1 ELSE 0 END,
              CASE WHEN va.HasVideo IS NULL THEN 1 ELSE 0 END,
              ABS(CHECKSUM(t.TitleId, @Today));
@@ -231,11 +280,25 @@ BEGIN
            CAST(CASE WHEN t.ReleaseDate BETWEEN DATEADD(DAY, -60, @Today) AND @Today
                      THEN 1 ELSE 0 END AS bit)                       AS IsRecent,
            CAST(CASE WHEN EXISTS (SELECT 1 FROM media.VideoAsset AS a WHERE a.TitleId = t.TitleId)
-                     THEN 1 ELSE 0 END AS bit)                       AS HasVideo
+                     THEN 1 ELSE 0 END AS bit)                       AS HasVideo,
+           CAST(CASE WHEN ml.TitleId IS NULL THEN 0 ELSE 1 END AS bit) AS InMyList,
+           rt.Rating                                                AS MyRating,
+           -- Resume point, only on the Continue watching cards: progress bar + "S2:E5" label.
+           CAST(CASE WHEN rp.DurationSeconds > 0
+                     THEN 100 * rp.PositionSeconds / rp.DurationSeconds END AS tinyint) AS ResumePercent,
+           rs.SeasonNumber                                          AS ResumeSeasonNumber,
+           re.EpisodeNumber                                         AS ResumeEpisodeNumber
     FROM   #items AS i
            INNER JOIN #rows AS r ON r.RowOrder = i.RowOrder
            INNER JOIN catalog.Title AS t ON t.TitleId = i.TitleId
            CROSS APPLY catalog.fn_TitleText(t.TitleId, @LanguageCode) AS txt
+           LEFT JOIN playback.MyList AS ml ON ml.ProfileId = @ProfileId AND ml.TitleId = t.TitleId
+           LEFT JOIN playback.Rating AS rt ON rt.ProfileId = @ProfileId AND rt.TitleId = t.TitleId
+           OUTER APPLY (SELECT r2.EpisodeId, r2.PositionSeconds, r2.DurationSeconds
+                        FROM   playback.fn_ResumePoint(@ProfileId, t.TitleId) AS r2
+                        WHERE  i.RowOrder = 0) AS rp
+           LEFT JOIN catalog.Episode AS re ON re.EpisodeId = rp.EpisodeId
+           LEFT JOIN catalog.Season  AS rs ON rs.SeasonId  = re.SeasonId
            -- Up to 3 genre names for the hover card: "Hành Động • Phiêu Lưu • Giả Tưởng"
            -- (TMDB's Vietnamese movie genres all start with "Phim ", which is noise in a list).
            OUTER APPLY
