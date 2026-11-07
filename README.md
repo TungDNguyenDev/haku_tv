@@ -1,5 +1,7 @@
 # HakuTV (local, dùng để học)
 
+[![CI](https://github.com/TungDNguyenDev/haku_tv/actions/workflows/ci.yml/badge.svg)](https://github.com/TungDNguyenDev/haku_tv/actions/workflows/ci.yml)
+
 Nền tảng xem phim kiểu streaming, dự án cá nhân để học, chạy hoàn toàn ở local: **.NET 8 Web API + Dapper/Stored Procedure + SQL Server**, **React TS + Redux Toolkit + redux-saga + Tailwind (antd cho trang admin)**,
 video phát theo chuẩn **DASH/HLS (CMAF)** có DRM **ClearKey**.
 
@@ -99,7 +101,29 @@ Mã thoát: `0` OK, `1` có title bị lỗi (đã bỏ qua), `2` chưa có toke
 dotnet test backend                                       # unit test + test chạy SP/repository trên DB local (rollback)
 dotnet test backend --filter "Category!=Database"         # chỉ unit test
 sqlcmd -S .\SQLEXPRESS -d HakuTV -E -C -I -b -i database\tests\catalog_smoke_test.sql
+npm --prefix frontend test                                # Vitest: unit test + test component (jsdom)
+npm --prefix frontend run test:watch                      # chạy lại mỗi khi sửa code
 ```
+
+Test database đọc chuỗi kết nối từ biến môi trường `HAKUTV_TEST_DB` (mặc định là DB `HakuTV` trên SQL Express local).
+Muốn chạy giống CI, trên một database trống:
+
+```powershell
+$env:HAKUTV_TEST_DB = 'Server=.\SQLEXPRESS;Database=HakuTV_CI;Trusted_Connection=True;TrustServerCertificate=True'
+dotnet run --project backend/src/HakuTV.DbMigrator -- --connection $env:HAKUTV_TEST_DB
+dotnet test backend
+Remove-Item Env:HAKUTV_TEST_DB
+```
+
+### CI (GitHub Actions)
+
+[.github/workflows/ci.yml](.github/workflows/ci.yml) chạy trên máy của GitHub mỗi lần push lên `main` và mỗi pull request
+(không cần server hay domain). Hai job chạy song song:
+
+- **Frontend:** `npm ci`, lint, Vitest, type check và build.
+- **Database & backend:** dựng SQL Server Express trong container, chạy migrator trên database trống, smoke test SQL, rồi toàn bộ test xUnit.
+
+Kết quả hiện ở tab **Actions** và bằng dấu ✓/✗ cạnh mỗi commit/PR. Có thể chạy tay bằng nút **Run workflow**.
 
 ## Pipeline video (spike của Giai đoạn 0)
 

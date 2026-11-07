@@ -16,8 +16,7 @@ namespace HakuTV.Tests.Seeder;
 [Collection(DatabaseCollection.Name)]
 public class CatalogProcContractTests
 {
-    private const string ConnectionString =
-        @"Server=.\SQLEXPRESS;Database=HakuTV;Trusted_Connection=True;TrustServerCertificate=True";
+    private static string ConnectionString => TestDatabase.ConnectionString;
 
     [Fact]
     public async Task Mapped_documents_are_accepted_by_the_procs()

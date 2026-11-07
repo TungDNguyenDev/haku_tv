@@ -19,8 +19,7 @@ namespace HakuTV.Tests.Identity;
 [Collection(DatabaseCollection.Name)]
 public sealed class IdentityDbTests : IAsyncLifetime
 {
-    private const string ConnectionString =
-        @"Server=.\SQLEXPRESS;Database=HakuTV;Trusted_Connection=True;TrustServerCertificate=True";
+    private static string ConnectionString => TestDatabase.ConnectionString;
 
     private sealed class Factory : ISqlConnectionFactory
     {

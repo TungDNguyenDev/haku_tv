@@ -1,0 +1,110 @@
+# Continuous integration: every push to main and every pull request is built and tested on GitHub's machines.
+# Nothing is deployed, so no server or domain is needed. Two independent jobs run in parallel:
+#   frontend  - lint, unit/component tests (Vitest), type check + production build
+#   backend   - a throwaway SQL Server, all migrations from an empty database, the SQL smoke test, xUnit tests
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: # "Run workflow" button on the Actions tab
+
+permissions:
+  contents: read
+
+# A newer push to the same branch / PR cancels the run still going for the older commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install (exact versions from package-lock.json)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and component tests
+        run: npm test
+
+      - name: Type check and build
+        run: npm run build
+
+  backend:
+    name: Database & backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    # SQL Server in a container next to the job, reachable on localhost:1433 and thrown away afterwards.
+    # Express edition, like the local SQL Server Express. The sa password only protects this disposable container.
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: Express
+          MSSQL_SA_PASSWORD: HakuTv_Ci_2026
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P HakuTv_Ci_2026 -C -b -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+          --health-start-period 20s
+
+    env:
+      # Read by HakuTV.Tests (TestDatabase.cs) and passed to the migrator below.
+      HAKUTV_TEST_DB: Server=localhost,1433;Database=HakuTV;User Id=sa;Password=HakuTv_Ci_2026;TrustServerCertificate=True
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore backend/HakuTV.sln
+
+      - name: Build
+        run: dotnet build backend/HakuTV.sln --no-restore --configuration Release
+
+      # Same migrator as on a developer machine: creates the database, runs database/migrations once each and
+      # database/programmability every time. Starting from an empty database proves the scripts work from scratch.
+      - name: Migrate an empty database
+        run: >-
+          dotnet run --project backend/src/HakuTV.DbMigrator --no-build --configuration Release
+          -- --connection "$HAKUTV_TEST_DB"
+
+      # Pure T-SQL test of the catalog procs (runs in a transaction and rolls back). The script is copied into the
+      # SQL Server container and run with its own sqlcmd; -I = QUOTED_IDENTIFIER ON, -b = fail on the first error.
+      - name: SQL smoke test
+        run: |
+          docker cp database/tests/catalog_smoke_test.sql ${{ job.services.mssql.id }}:/tmp/catalog_smoke_test.sql
+          docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P HakuTv_Ci_2026 -C -d HakuTV -I -b -f 65001 -i /tmp/catalog_smoke_test.sql
+
+      - name: Unit and database tests
+        run: >-
+          dotnet test backend/tests/HakuTV.Tests --no-build --configuration Release
+          --logger "console;verbosity=normal"

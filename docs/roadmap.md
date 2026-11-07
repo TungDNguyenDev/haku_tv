@@ -35,7 +35,11 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
   thư mục `.dev-mail`), đổi mật khẩu (đăng xuất các thiết bị khác), danh sách thiết bị đang đăng nhập + đăng xuất từng máy / tất cả,
   khóa hồ sơ bằng PIN 4 số (cần mật khẩu tài khoản; giới hạn 10 lần thử/5 phút/tài khoản), giới hạn độ tuổi nhiều mức
   (mọi độ tuổi / 16+ / 13+ / 7+; trẻ em 12 hoặc 7). Trang `/account`. Footer mới.
-  Còn để sau: dịch giao diện sang tiếng Anh theo ngôn ngữ hồ sơ (hiện chỉ dữ liệu phim đổi ngôn ngữ).
+  Giao diện song ngữ Việt/Anh theo ngôn ngữ hồ sơ (từ điển có kiểu ở `frontend/src/i18n`, lỗi API dịch theo `code`,
+  chọn ngôn ngữ trên header và ở các trang chưa đăng nhập; email đặt lại mật khẩu theo ngôn ngữ đó).
+- **CI và test frontend (nhóm C): xong.** GitHub Actions: lint + Vitest + build frontend; migration từ database trống,
+  smoke test SQL và xUnit trên SQL Server Express trong container. Test frontend: từ điển, `apiError`, auth slice,
+  saga chọn hồ sơ có PIN (giả lập API ở tầng axios), trang đăng nhập, hộp nhập PIN.
 - **Gia cố bảo mật sau Giai đoạn 3: xong.** License DRM theo quyền xem từng phim, `/media` bằng cookie ký, cờ admin,
   dọn refresh token định kỳ, xử lý lỗi chung (xem "Các quyết định đã chốt" bên dưới).
 
