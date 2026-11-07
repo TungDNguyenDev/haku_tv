@@ -7,12 +7,13 @@ namespace HakuTV.Infrastructure.Media;
 
 public sealed class PlaybackRepository(ISqlConnectionFactory db) : IPlaybackRepository
 {
-    public async Task<PlaybackSource?> GetAsync(int titleId, int? episodeId, string languageCode, byte? maxMaturityAge, CancellationToken ct = default)
+    public async Task<PlaybackSource?> GetAsync(int titleId, int? episodeId, string languageCode, byte? maxMaturityAge, int? profileId = null,
+        CancellationToken ct = default)
     {
         await using var conn = await db.OpenAsync(ct);
         return await conn.QuerySingleOrDefaultAsync<PlaybackSource>(new CommandDefinition(
             "media.usp_Playback_Get",
-            new { TitleId = titleId, EpisodeId = episodeId, LanguageCode = languageCode, MaxMaturityAge = maxMaturityAge },
+            new { TitleId = titleId, EpisodeId = episodeId, LanguageCode = languageCode, MaxMaturityAge = maxMaturityAge, ProfileId = profileId },
             commandType: CommandType.StoredProcedure,
             cancellationToken: ct));
     }

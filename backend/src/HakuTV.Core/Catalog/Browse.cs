@@ -4,7 +4,8 @@ namespace HakuTV.Core.Catalog;
 public interface ICatalogQueries
 {
     /// <param name="maxMaturityAge">NULL = no limit (adult profile). Kids profiles pass 12 (Phase 3).</param>
-    Task<HomeFeed> GetHomeAsync(string languageCode, byte? maxMaturityAge, CancellationToken ct = default);
+    /// <param name="profileId">Adds the profile's rows (Continue watching, My List) and card state. NULL = none.</param>
+    Task<HomeFeed> GetHomeAsync(string languageCode, byte? maxMaturityAge, int? profileId = null, CancellationToken ct = default);
 }
 
 public sealed record HomeFeed(HeroTitle? Hero, IReadOnlyList<BrowseRow> Rows);
@@ -28,6 +29,11 @@ public sealed class TitleCard
     public string? Genres { get; init; }            // up to 3 names, "Hành Động • Phiêu Lưu"
     public bool IsRecent { get; init; }             // released in the last 60 days
     public bool HasVideo { get; init; }
+    public bool InMyList { get; init; }
+    public byte? MyRating { get; init; }            // 1 not for me, 2 like, 3 love
+    public byte? ResumePercent { get; init; }       // Continue watching cards only: progress bar
+    public short? ResumeSeasonNumber { get; init; } //   and "S2:E5" of the episode to continue
+    public short? ResumeEpisodeNumber { get; init; }
 }
 
 public sealed class HeroTitle
@@ -43,6 +49,8 @@ public sealed class HeroTitle
     public int? ReleaseYear { get; init; }
     public decimal? VoteAverage { get; init; }
     public bool HasVideo { get; init; }
+    public bool InMyList { get; init; }
+    public byte? MyRating { get; init; }
 }
 
 /// <summary>Row columns of one item in the flat result set of usp_Browse_GetHome (the card columns follow).</summary>

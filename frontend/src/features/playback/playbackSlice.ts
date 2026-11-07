@@ -1,5 +1,5 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { PlaybackErrorCode, PlaybackInfo } from './playbackApi'
+import { createAction, createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import type { PlaybackErrorCode, PlaybackInfo, ProgressReport } from './playbackApi'
 
 export interface PlaybackRequest {
   titleId: number
@@ -38,6 +38,13 @@ const playbackSlice = createSlice({
     },
   },
 })
+
+/**
+ * Player heartbeat (every few seconds while playing, on pause, seek and end). leaving = the viewer closed the player:
+ * after that save the home rows are reloaded, so Continue watching shows the new position.
+ * No state: the position lives in the video element and on the server.
+ */
+export const progressReported = createAction<{ report: ProgressReport; leaving: boolean }>('playback/progressReported')
 
 export const { playbackRequested, playbackSucceeded, playbackFailed, playbackCleared } = playbackSlice.actions
 export default playbackSlice.reducer

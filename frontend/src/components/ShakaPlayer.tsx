@@ -4,19 +4,34 @@ import 'shaka-player/dist/controls.css'
 import type { PlaybackDrm } from '../features/playback/playbackApi'
 import { getAccessToken } from '../services/http'
 
+/**
+ * Why a position is reported: tick = every few seconds while playing, pause (also a seek while paused), ended,
+ * leave = the player is closed (page left, other episode), pagehide = the tab is closed or reloaded.
+ */
+export type ProgressReason = 'tick' | 'pause' | 'ended' | 'leave' | 'pagehide'
+
+const HEARTBEAT_MS = 10_000
+
 interface Props {
   manifestUrl: string
   drm: PlaybackDrm | null
+  /** Seconds to start at (where the profile stopped); 0 = from the start. Read once, when the video loads. */
+  startTime?: number
   /** Shaka error code (https://shaka-player-demo.appspot.com/docs/api/shaka.util.Error.html), -1 = browser not supported. */
   onError: (code: number) => void
+  onProgress?: (position: { seconds: number; duration: number }, reason: ProgressReason) => void
 }
 
 // Shaka Player + its default UI (seek bar, quality, fullscreen...). Phase 6 replaces the UI with our own controls.
 // This module is only imported by the lazy-loaded WatchPage, so the ~700 KB player never lands in the browse bundle.
-export default function ShakaPlayer({ manifestUrl, drm, onError }: Props) {
+export default function ShakaPlayer({ manifestUrl, drm, startTime = 0, onError, onProgress }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const reportError = useEffectEvent(onError)
+  const reportProgress = useEffectEvent((seconds: number, duration: number, reason: ProgressReason) =>
+    onProgress?.({ seconds, duration }, reason),
+  )
+  const startAt = useEffectEvent(() => startTime)
 
   const keySystem = drm?.keySystem ?? null
   const licenseUrl = drm?.licenseUrl ?? null
@@ -60,11 +75,40 @@ export default function ShakaPlayer({ manifestUrl, drm, onError }: Props) {
       if (!cancelled()) reportError(detail?.code ?? 0)
     })
 
+    // Progress: only once the video has really played. Before that currentTime is 0 (or still loading) and saving
+    // it would overwrite where the viewer stopped last time.
+    const session = { played: false }
+    const report = (reason: ProgressReason) => {
+      const duration = video.duration
+      if (session.played && Number.isFinite(duration) && duration > 0) reportProgress(video.currentTime, duration, reason)
+    }
+    const onPlaying = () => {
+      session.played = true
+    }
+    const onPause = () => {
+      if (!video.ended) report('pause') // "ended" also fires pause; reported once, as ended
+    }
+    const onSeeked = () => {
+      if (video.paused) report('pause') // while playing, the next tick saves it
+    }
+    const onEnded = () => report('ended')
+    const onPageHide = () => report('pagehide')
+    video.addEventListener('playing', onPlaying)
+    video.addEventListener('pause', onPause)
+    video.addEventListener('seeked', onSeeked)
+    video.addEventListener('ended', onEnded)
+    window.addEventListener('pagehide', onPageHide)
+    const heartbeat = window.setInterval(() => {
+      if (!video.paused) report('tick')
+    }, HEARTBEAT_MS)
+
     const start = async () => {
       try {
         await player.attach(video)
         if (cancelled()) return
-        await player.load(manifestUrl)
+        // Resume a little before the exact second, so the viewer catches the last words again.
+        const resumeAt = startAt() > 5 ? startAt() - 3 : undefined
+        await player.load(manifestUrl, resumeAt)
         if (cancelled()) return
         // Autoplay with sound is allowed here because the user clicked Play to get to this page.
         await video.play().catch(() => undefined)
@@ -78,6 +122,14 @@ export default function ShakaPlayer({ manifestUrl, drm, onError }: Props) {
     void start()
 
     return () => {
+      // Report before tearing down: destroying the player resets the video element.
+      if (!cancelled()) report('leave')
+      window.clearInterval(heartbeat)
+      window.removeEventListener('pagehide', onPageHide)
+      video.removeEventListener('playing', onPlaying)
+      video.removeEventListener('pause', onPause)
+      video.removeEventListener('seeked', onSeeked)
+      video.removeEventListener('ended', onEnded)
       lifetime.abort()
       void ui.destroy() // also destroys the player and releases the media keys
     }

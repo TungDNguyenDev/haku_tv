@@ -40,6 +40,12 @@ Mỗi giai đoạn làm theo kiểu **vertical slice**: Stored Procedure → API
 - **CI và test frontend (nhóm C): xong.** GitHub Actions: lint + Vitest + build frontend; migration từ database trống,
   smoke test SQL và xUnit trên SQL Server Express trong container. Test frontend: từ điển, `apiError`, auth slice,
   saga chọn hồ sơ có PIN (giả lập API ở tầng axios), trang đăng nhập, hộp nhập PIN.
+- **Giai đoạn 4: xong.** Schema `playback` (migration 0009): `WatchProgress`, `MyList`, `Rating` (3 mức: không dành cho tôi / thích / rất thích).
+  Player gửi vị trí 10 giây một lần, khi tạm dừng, tua, hết phim và khi rời trang (đóng tab thì gửi bằng `fetch` keepalive).
+  Xem ≥ 95% thì coi là đã xem xong. Bấm Phát thì tiếp tục đúng chỗ đã dừng (lùi 3 giây); với series thì vào tập đang xem dở,
+  hoặc tập kế tiếp nếu tập trước đã xem xong (`playback.fn_ResumePoint`). Trang chủ có hàng "Tiếp tục xem nội dung của …"
+  (thanh tiến độ, nhãn P1:T2, nút xóa khỏi hàng) và hàng "Danh sách của tôi"; nút Danh sách và đánh giá trong thẻ phóng to
+  đổi giao diện ngay rồi mới gọi API, API lỗi thì hoàn tác. Chi tiết: [erd.md](erd.md#tiến-độ-xem-danh-sách-đánh-giá-schema-playback-giai-đoạn-4).
 - **Gia cố bảo mật sau Giai đoạn 3: xong.** License DRM theo quyền xem từng phim, `/media` bằng cookie ký, cờ admin,
   dọn refresh token định kỳ, xử lý lỗi chung (xem "Các quyết định đã chốt" bên dưới).
 

@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { BackIcon } from '../components/icons'
-import ShakaPlayer from '../components/ShakaPlayer'
-import type { PlaybackInfo } from '../features/playback/playbackApi'
+import ShakaPlayer, { type ProgressReason } from '../components/ShakaPlayer'
+import { saveProgressOnUnload, type PlaybackInfo } from '../features/playback/playbackApi'
 import { selectLanguage } from '../features/auth/authSlice'
-import { playbackCleared, playbackRequested } from '../features/playback/playbackSlice'
+import { playbackCleared, playbackRequested, progressReported } from '../features/playback/playbackSlice'
 import { useT, type Messages } from '../i18n'
 
 // Shaka error codes worth a plain-language message; the rest show their number.
@@ -43,6 +43,22 @@ export default function WatchPage() {
   const playerError = failure?.sourceKey === sourceKey ? failure.code : null
   const onPlayerError = useCallback((code: number) => setFailure({ sourceKey, code }), [sourceKey])
 
+  // Watch progress → API. Closing the tab cannot wait for a saga: that last save goes out as a keepalive request.
+  const onProgress = useCallback(
+    (position: { seconds: number; duration: number }, reason: ProgressReason) => {
+      if (!info) return
+      const report = {
+        titleId: info.titleId,
+        episodeId: info.episodeId,
+        positionSeconds: position.seconds,
+        durationSeconds: position.duration,
+      }
+      if (reason === 'pagehide') saveProgressOnUnload(report)
+      else dispatch(progressReported({ report, leaving: reason === 'leave' }))
+    },
+    [info, dispatch],
+  )
+
   useEffect(() => {
     if (!Number.isInteger(id)) return
     dispatch(playbackRequested({ titleId: id, episodeId, lang }))
@@ -62,7 +78,13 @@ export default function WatchPage() {
   return (
     <div className="fixed inset-0 bg-black" onMouseMove={chrome.wake} onTouchStart={chrome.wake}>
       {status === 'succeeded' && info && playerError === null && (
-        <ShakaPlayer manifestUrl={info.manifestUrl} drm={info.drm} onError={onPlayerError} />
+        <ShakaPlayer
+          manifestUrl={info.manifestUrl}
+          drm={info.drm}
+          startTime={info.startPositionSeconds}
+          onError={onPlayerError}
+          onProgress={onProgress}
+        />
       )}
 
       {status === 'loading' && (

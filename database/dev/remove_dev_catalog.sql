@@ -9,7 +9,12 @@ SET XACT_ABORT ON;
 
 BEGIN TRANSACTION;
 
--- VideoAsset -> Episode has no cascade (see migration 0004), so delete the assets first.
+-- VideoAsset -> Episode and WatchProgress -> Episode have no cascade (migrations 0004, 0009), so delete those rows first.
+DELETE wp
+FROM   playback.WatchProgress AS wp
+       INNER JOIN catalog.Title AS t ON t.TitleId = wp.TitleId
+WHERE  t.TmdbId < 0;
+
 DELETE v
 FROM   media.VideoAsset AS v
        INNER JOIN catalog.Title AS t ON t.TitleId = v.TitleId

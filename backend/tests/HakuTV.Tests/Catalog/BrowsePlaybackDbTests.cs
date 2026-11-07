@@ -23,7 +23,7 @@ public class BrowsePlaybackDbTests
 {
     private static string ConnectionString => TestDatabase.ConnectionString;
 
-    private sealed class Factory : ISqlConnectionFactory
+    internal sealed class Factory : ISqlConnectionFactory
     {
         public async Task<DbConnection> OpenAsync(CancellationToken ct = default)
         {
@@ -33,12 +33,12 @@ public class BrowsePlaybackDbTests
         }
     }
 
-    private static TransactionScope RolledBackScope() =>
+    internal static TransactionScope RolledBackScope() =>
         new(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = System.Transactions.IsolationLevel.ReadCommitted },
             TransactionScopeAsyncFlowOption.Enabled);
 
     /// <summary>A movie rated R (17+) with a popularity far above anything TMDB returns, so it is first in its row.</summary>
-    private static async Task<(int MovieId, int SeriesId, int Episode2Id)> InsertTitlesAsync()
+    internal static async Task<(int MovieId, int SeriesId, int Episode2Id)> InsertTitlesAsync()
     {
         await using var conn = await new Factory().OpenAsync();
 

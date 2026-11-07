@@ -18,7 +18,7 @@ public sealed class BrowseController(ICatalogQueries catalog) : ControllerBase
     [HttpGet("home")]
     public async Task<ActionResult<HomeFeed>> Home([FromQuery] string? lang, CancellationToken ct)
     {
-        var feed = await catalog.GetHomeAsync(CatalogLanguage.Normalize(lang), User.MaxMaturityAge(), ct);
+        var feed = await catalog.GetHomeAsync(CatalogLanguage.Normalize(lang), User.MaxMaturityAge(), User.ProfileId(), ct);
         return Ok(feed);
     }
 }
