@@ -29,8 +29,9 @@ export interface Credentials {
   password: string
 }
 
-export async function register(body: Credentials): Promise<AuthResponse> {
-  return (await http.post<AuthResponse>('/api/auth/register', body)).data
+/** `language`: the sign-up page's UI language, given to the first profile. */
+export async function register(body: Credentials, language: string): Promise<AuthResponse> {
+  return (await http.post<AuthResponse>('/api/auth/register', { ...body, language })).data
 }
 
 export async function login(body: Credentials): Promise<AuthResponse> {

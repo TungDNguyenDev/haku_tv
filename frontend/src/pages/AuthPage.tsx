@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { AuthShell, Field, FormAlert } from '../components/AuthShell'
 import { authFormReset, loginRequested, registerRequested } from '../features/auth/authSlice'
+import { useT } from '../i18n'
 
 const MIN_PASSWORD = 8
 
-// One page for both "Đăng nhập" and "Đăng ký": same layout, the mode decides the title, the API call and the link.
+// One page for both sign-in and sign-up: same layout, the mode decides the title, the API call and the link.
 export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const dispatch = useAppDispatch()
   const { status, error } = useAppSelector((s) => s.auth.form)
+  const t = useT()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -29,23 +31,23 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }
 
   return (
-    <AuthShell title={isLogin ? 'Đăng nhập' : 'Tạo tài khoản'}>
+    <AuthShell title={isLogin ? t.auth.loginTitle : t.auth.registerTitle}>
       <form onSubmit={submit} className="space-y-4" noValidate>
-        <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" autoFocus />
+        <Field label={t.auth.email} type="email" value={email} onChange={setEmail} autoComplete="email" autoFocus />
         <Field
-          label="Mật khẩu"
+          label={t.auth.password}
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={setPassword}
           autoComplete={isLogin ? 'current-password' : 'new-password'}
           trailing={
             <button type="button" onClick={() => setShowPassword((v) => !v)} className="text-xs text-muted hover:text-white">
-              {showPassword ? 'Ẩn' : 'Hiện'}
+              {showPassword ? t.auth.hide : t.auth.show}
             </button>
           }
         />
         {!isLogin && (
-          <p className={`text-xs ${tooShort ? 'text-amber-400' : 'text-muted'}`}>Mật khẩu tối thiểu {MIN_PASSWORD} ký tự.</p>
+          <p className={`text-xs ${tooShort ? 'text-amber-400' : 'text-muted'}`}>{t.auth.passwordHint(MIN_PASSWORD)}</p>
         )}
 
         {error && <FormAlert>{error}</FormAlert>}
@@ -55,22 +57,22 @@ export default function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           disabled={status === 'loading' || !email || !password || tooShort}
           className="w-full rounded bg-brand py-3 font-semibold transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {status === 'loading' ? 'Đang xử lý…' : isLogin ? 'Đăng nhập' : 'Đăng ký'}
+          {status === 'loading' ? t.auth.working : isLogin ? t.auth.login : t.auth.register}
         </button>
 
         {isLogin && (
           <p className="text-center">
             <Link to="/forgot-password" className="text-sm text-white/80 hover:text-white hover:underline">
-              Quên mật khẩu?
+              {t.auth.forgot}
             </Link>
           </p>
         )}
       </form>
 
       <p className="mt-10 text-muted">
-        {isLogin ? 'Bạn mới dùng HakuTV? ' : 'Đã có tài khoản? '}
+        {isLogin ? t.auth.newHere : t.auth.haveAccount}
         <Link to={isLogin ? '/signup' : '/login'} className="font-medium text-white hover:underline">
-          {isLogin ? 'Đăng ký ngay.' : 'Đăng nhập.'}
+          {isLogin ? t.auth.registerNow : t.auth.loginLink}
         </Link>
       </p>
     </AuthShell>

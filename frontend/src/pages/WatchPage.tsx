@@ -3,29 +3,23 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { BackIcon } from '../components/icons'
 import ShakaPlayer from '../components/ShakaPlayer'
-import type { PlaybackErrorCode, PlaybackInfo } from '../features/playback/playbackApi'
+import type { PlaybackInfo } from '../features/playback/playbackApi'
 import { selectLanguage } from '../features/auth/authSlice'
 import { playbackCleared, playbackRequested } from '../features/playback/playbackSlice'
-
-const API_ERRORS: Record<PlaybackErrorCode, string> = {
-  'no-video': 'Phim này chưa có video.',
-  'not-allowed': 'Nội dung này không dành cho hồ sơ trẻ em.',
-  'files-missing': 'Không tìm thấy file video trên server (thư mục media/packaged). Hãy chạy lại tools/package.ps1.',
-  network: 'Không kết nối được tới API. API (.NET) đã chạy chưa?',
-}
+import { useT, type Messages } from '../i18n'
 
 // Shaka error codes worth a plain-language message; the rest show their number.
-function playerErrorMessage(code: number): string {
-  if (code === -1) return 'Trình duyệt này không hỗ trợ phát video có DRM.'
-  if (code === 6007 || code === 6008) return 'Không lấy được key giải mã từ license server (/api/drm/clearkey/license).'
-  if (code === 6001 || code === 6002) return 'Trình duyệt không hỗ trợ ClearKey.'
-  if (code >= 1000 && code < 2000) return `Không tải được video (lỗi mạng ${code}).`
-  return `Lỗi khi phát video (mã ${code}).`
+function playerErrorMessage(t: Messages, code: number): string {
+  if (code === -1) return t.watch.noDrm
+  if (code === 6007 || code === 6008) return t.watch.noLicense
+  if (code === 6001 || code === 6002) return t.watch.noClearKey
+  if (code >= 1000 && code < 2000) return t.watch.networkError(code)
+  return t.watch.playerError(code)
 }
 
-function subtitle(info: PlaybackInfo): string | null {
+function subtitle(t: Messages, info: PlaybackInfo): string | null {
   if (info.episodeNumber === null) return null
-  const label = `Phần ${info.seasonNumber}, Tập ${info.episodeNumber}`
+  const label = t.watch.episode(info.seasonNumber, info.episodeNumber)
   return info.episodeName ? `${label}: ${info.episodeName}` : label
 }
 
@@ -36,6 +30,7 @@ export default function WatchPage() {
   const dispatch = useAppDispatch()
   const { status, info, error } = useAppSelector((s) => s.playback)
   const lang = useAppSelector(selectLanguage)
+  const t = useT()
   const chrome = useIdleChrome()
 
   const id = Number(titleId)
@@ -57,11 +52,11 @@ export default function WatchPage() {
   }, [id, episodeId, lang, dispatch])
 
   const message = !Number.isInteger(id)
-    ? 'Đường dẫn không hợp lệ.'
+    ? t.watch.badLink
     : error
-      ? API_ERRORS[error]
+      ? t.watch.errors[error]
       : playerError !== null
-        ? playerErrorMessage(playerError)
+        ? playerErrorMessage(t, playerError)
         : null
 
   return (
@@ -81,7 +76,7 @@ export default function WatchPage() {
           <div>
             <p className="text-lg">{message}</p>
             <button type="button" onClick={() => navigate('/browse')} className="mt-6 rounded bg-white px-5 py-2 font-semibold text-black hover:bg-white/80">
-              Về trang chủ
+              {t.watch.home}
             </button>
           </div>
         </div>
@@ -95,7 +90,7 @@ export default function WatchPage() {
       >
         <button
           type="button"
-          aria-label="Quay lại"
+          aria-label={t.watch.back}
           onClick={() => navigate(-1)}
           className="pointer-events-auto rounded-full p-1 hover:bg-white/10"
         >
@@ -104,7 +99,7 @@ export default function WatchPage() {
         {info && (
           <div className="leading-tight">
             <p className="text-lg font-semibold md:text-2xl">{info.titleName}</p>
-            {subtitle(info) && <p className="text-sm text-muted md:text-base">{subtitle(info)}</p>}
+            {subtitle(t, info) && <p className="text-sm text-muted md:text-base">{subtitle(t, info)}</p>}
           </div>
         )}
       </div>

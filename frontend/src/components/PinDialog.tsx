@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useT } from '../i18n'
 
 /** Four-digit PIN field: one input (paste, autofill and screen readers work), drawn as four boxes. */
 export function PinInput({ value, onChange, autoFocus }: { value: string; onChange: (v: string) => void; autoFocus?: boolean }) {
   const ref = useRef<HTMLInputElement>(null)
+  const t = useT()
   return (
     <div className="relative mx-auto w-fit" onClick={() => ref.current?.focus()}>
       <div className="flex gap-3" aria-hidden="true">
@@ -24,7 +26,7 @@ export function PinInput({ value, onChange, autoFocus }: { value: string; onChan
         inputMode="numeric"
         autoComplete="off"
         autoFocus={autoFocus}
-        aria-label="Mã PIN 4 số"
+        aria-label={t.pin.inputLabel}
         className="absolute inset-0 cursor-default opacity-0"
       />
     </div>
@@ -63,6 +65,7 @@ export function PinPrompt({
   onClose: () => void
 }) {
   const [pin, setPin] = useState('')
+  const t = useT()
 
   const change = (value: string) => {
     setPin(value)
@@ -82,16 +85,16 @@ export function PinPrompt({
   }
 
   return (
-    <Dialog label={`Mã PIN của hồ sơ ${profileName}`} onClose={onClose}>
+    <Dialog label={t.pin.dialogLabel(profileName)} onClose={onClose}>
       <form onSubmit={submit}>
-        <p className="text-sm text-muted">Hồ sơ đã khóa</p>
-        <h2 className="mt-1 mb-6 text-2xl font-bold">Nhập mã PIN để vào hồ sơ {profileName}</h2>
+        <p className="text-sm text-muted">{t.pin.locked}</p>
+        <h2 className="mt-1 mb-6 text-2xl font-bold">{t.pin.enter(profileName)}</h2>
         <PinInput value={pin} onChange={change} autoFocus />
         <p role="alert" className="mt-5 min-h-5 text-sm text-amber-400">
-          {busy ? <span className="text-muted">Đang kiểm tra…</span> : error}
+          {busy ? <span className="text-muted">{t.pin.checking}</span> : error}
         </p>
         <button type="button" onClick={onClose} className="mt-4 text-sm text-muted hover:text-white">
-          Hủy
+          {t.common.cancel}
         </button>
       </form>
     </Dialog>

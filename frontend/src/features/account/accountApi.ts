@@ -11,7 +11,7 @@ export interface Session {
   familyId: string
   startedAt: string
   lastSeenAt: string
-  device: string // "Chrome · Windows"
+  device: string // "Chrome · Windows"; "" when the user agent was not recognised
   isCurrent: boolean
 }
 
@@ -35,8 +35,9 @@ export async function changePassword(currentPassword: string, newPassword: strin
   await http.post('/api/auth/password', { currentPassword, newPassword })
 }
 
-export async function forgotPassword(email: string): Promise<string> {
-  return (await http.post<{ message: string }>('/api/auth/forgot-password', { email })).data.message
+/** `language` picks the language of the reset email. */
+export async function forgotPassword(email: string, language: string): Promise<void> {
+  await http.post('/api/auth/forgot-password', { email, language })
 }
 
 export async function resetPassword(token: string, password: string): Promise<void> {

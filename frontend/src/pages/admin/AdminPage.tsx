@@ -1,8 +1,10 @@
 import { ConfigProvider, Layout, Menu, Result, theme } from 'antd'
 import { Link } from 'react-router-dom'
+import { useT } from '../../i18n'
 
 // antd is used only in the admin area; this module is lazy-loaded so the viewer UI never ships antd.
 export default function AdminPage() {
+  const t = useT()
   return (
     <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#e50914' } }}>
       <Layout style={{ minHeight: '100vh' }}>
@@ -13,7 +15,7 @@ export default function AdminPage() {
             mode="inline"
             defaultSelectedKeys={['titles']}
             items={[
-              { key: 'titles', label: 'Phim / Series' },
+              { key: 'titles', label: t.admin.titles },
               { key: 'upload', label: 'Upload & Transcode' },
               { key: 'jobs', label: 'Jobs' },
             ]}
@@ -22,9 +24,9 @@ export default function AdminPage() {
         <Layout.Content style={{ padding: 24 }}>
           <Result
             status="info"
-            title="Khu vực Admin"
-            subTitle="Upload phim, quản lý metadata và theo dõi transcode sẽ làm ở Giai đoạn 8."
-            extra={<Link to="/">Về trang chính</Link>}
+            title={t.admin.title}
+            subTitle={t.admin.subtitle}
+            extra={<Link to="/">{t.admin.back}</Link>}
           />
         </Layout.Content>
       </Layout>

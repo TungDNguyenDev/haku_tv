@@ -3,13 +3,16 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { logoutRequested, selectCanAdmin } from '../features/auth/authSlice'
 import { profileSelectRequested, profilesRequested } from '../features/profiles/profilesSlice'
+import { useT } from '../i18n'
 import Avatar from './Avatar'
 import { ChevronDownIcon } from './icons'
+import LanguageSelect from './LanguageSelect'
 
 // Transparent over the hero, solid once the page scrolls. Right side: the profile menu (switch, manage, sign out).
 export default function AppHeader() {
   const [scrolled, setScrolled] = useState(false)
   const profile = useAppSelector((s) => s.auth.profile)
+  const t = useT()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
@@ -30,13 +33,21 @@ export default function AppHeader() {
         </Link>
         <nav className="flex gap-5 text-sm">
           <NavLink to="/browse" className={({ isActive }) => (isActive ? 'font-semibold text-white' : 'text-muted hover:text-white')}>
-            Trang chủ
+            {t.common.home}
           </NavLink>
         </nav>
         {profile?.isKids && (
-          <span className="rounded-full bg-sky-500/90 px-2.5 py-0.5 text-xs font-bold tracking-wide uppercase">Trẻ em</span>
+          <span className="rounded-full bg-sky-500/90 px-2.5 py-0.5 text-xs font-bold tracking-wide uppercase">{t.common.kids}</span>
         )}
-        <div className="ml-auto">{profile && <ProfileMenu />}</div>
+        {profile && (
+          <div className="ml-auto flex items-center gap-5">
+            {/* Phones: no room next to the logo, the picker is inside the profile menu instead. */}
+            <div className="hidden sm:block">
+              <LanguageSelect />
+            </div>
+            <ProfileMenu />
+          </div>
+        )}
       </div>
     </header>
   )
@@ -48,6 +59,7 @@ function ProfileMenu() {
   const profile = useAppSelector((s) => s.auth.profile)!
   const { items, selectingId } = useAppSelector((s) => s.profiles)
   const canAdmin = useAppSelector(selectCanAdmin)
+  const t = useT()
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
@@ -102,7 +114,8 @@ function ProfileMenu() {
       {open && (
         <div role="menu" className="absolute top-full right-0 mt-3 w-60 rounded-sm border border-white/15 bg-black/95 py-3 text-sm shadow-xl">
           <p className="truncate px-4 pb-3 text-xs text-muted">
-            Đang xem: <span className="font-semibold text-white">{profile.name}</span>
+            {t.header.watching}
+            <span className="font-semibold text-white">{profile.name}</span>
           </p>
           {others.map((p) => (
             <button
@@ -120,7 +133,7 @@ function ProfileMenu() {
             >
               <Avatar avatarKey={p.avatarKey} className="size-8 text-[8px]" />
               <span className="truncate">{p.name}</span>
-              {p.hasPin && <span className="text-xs text-muted" title="Đã khóa">🔒</span>}
+              {p.hasPin && <span className="text-xs text-muted" title={t.common.locked}>🔒</span>}
               {selectingId === p.profileId && <span className="ml-auto size-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />}
             </button>
           ))}
@@ -130,16 +143,19 @@ function ProfileMenu() {
             onClick={() => navigate('/profiles?manage')}
             className="mt-2 block w-full px-4 py-1.5 text-left hover:underline"
           >
-            Quản lý hồ sơ
+            {t.common.manageProfiles}
           </button>
           <Link to="/account" role="menuitem" className="block px-4 py-1.5 hover:underline">
-            Tài khoản
+            {t.common.account}
           </Link>
           {canAdmin && (
             <Link to="/admin" role="menuitem" className="block px-4 py-1.5 hover:underline">
-              Trang quản trị
+              {t.common.admin}
             </Link>
           )}
+          <div className="px-4 pt-2 sm:hidden">
+            <LanguageSelect className="w-full [&>select]:w-full" />
+          </div>
           <hr className="my-2 border-white/15" />
           <button
             type="button"
@@ -147,7 +163,7 @@ function ProfileMenu() {
             onClick={() => dispatch(logoutRequested())}
             className="block w-full px-4 py-1.5 text-center hover:underline"
           >
-            Đăng xuất khỏi HakuTV
+            {t.header.signOut}
           </button>
         </div>
       )}

@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
+import { errorText, messages } from '../i18n'
 
 // Same-origin in dev: Vite proxies /api and /media to the backend (see vite.config.ts), so the refresh cookie
 // (path /api/auth, SameSite=Strict) is a first-party cookie and is sent without any CORS credentials setup.
@@ -55,13 +56,19 @@ http.interceptors.response.use(undefined, async (error) => {
   throw error
 })
 
-/** { code, error } body of the auth/profile endpoints → a code and a message for the UI. */
-export function apiError(err: unknown, fallback = 'Đã có lỗi xảy ra, hãy thử lại.'): { code: string; message: string } {
+/**
+ * { code, error } body of the auth/profile endpoints → a code and a message for the UI, in the UI language.
+ * The client translates by code; the server's own text is only used for a code the client does not know yet.
+ */
+export function apiError(err: unknown): { code: string; message: string } {
+  const result = (code: string, serverText?: string) => ({
+    code,
+    message: errorText(code) ?? serverText ?? messages().errors.generic,
+  })
   if (axios.isAxiosError<{ code?: string; error?: string }>(err)) {
-    if (err.response?.status === 429 && !err.response.data?.code)
-      return { code: 'rate-limited', message: 'Bạn thao tác quá nhanh, hãy thử lại sau ít phút.' }
-    if (err.response?.data?.code) return { code: err.response.data.code, message: err.response.data.error ?? fallback }
-    if (!err.response) return { code: 'network', message: 'Không kết nối được tới API. API (.NET) đã chạy chưa?' }
+    if (err.response?.status === 429 && !err.response.data?.code) return result('rate-limited')
+    if (err.response?.data?.code) return result(err.response.data.code, err.response.data.error)
+    if (!err.response) return result('network')
   }
-  return { code: 'error', message: fallback }
+  return result('generic')
 }

@@ -1,5 +1,6 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { call, delay, put, takeEvery, takeLatest } from 'redux-saga/effects'
+import { currentLanguage } from '../../i18n'
 import { apiError } from '../../services/http'
 import { login, logout, refresh, register, type AuthResponse, type Credentials } from './authApi'
 import {
@@ -27,8 +28,10 @@ function* restoreSession() {
 
 function* signIn(action: PayloadAction<Credentials>) {
   try {
-    const api = action.type === registerRequested.type ? register : login
-    const res: AuthResponse = yield call(api, action.payload)
+    const res: AuthResponse =
+      action.type === registerRequested.type
+        ? yield call(register, action.payload, currentLanguage())
+        : yield call(login, action.payload)
     rememberProfile(null)
     yield put(sessionStarted(res))
   } catch (err) {

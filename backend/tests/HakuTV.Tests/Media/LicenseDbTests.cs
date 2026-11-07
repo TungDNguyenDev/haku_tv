@@ -17,8 +17,7 @@ namespace HakuTV.Tests.Media;
 [Collection(DatabaseCollection.Name)]
 public class LicenseDbTests
 {
-    private const string ConnectionString =
-        @"Server=.\SQLEXPRESS;Database=HakuTV;Trusted_Connection=True;TrustServerCertificate=True";
+    private static string ConnectionString => TestDatabase.ConnectionString;
 
     private sealed class Factory : ISqlConnectionFactory
     {

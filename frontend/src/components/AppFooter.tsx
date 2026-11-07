@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAppSelector } from '../app/hooks'
 import { selectCanAdmin } from '../features/auth/authSlice'
+import { useT } from '../i18n'
 
 const REPO_URL = 'https://github.com/TungDNguyenDev/haku_tv'
 const YEAR = new Date().getFullYear()
@@ -16,12 +17,13 @@ const YEAR = new Date().getFullYear()
 export default function AppFooter() {
   const canAdmin = useAppSelector(selectCanAdmin)
   const signedIn = useAppSelector((s) => s.auth.status === 'authenticated')
+  const t = useT()
 
   return (
     <footer className="mt-16 w-full border-t border-white/10 bg-black text-[13px] text-[#808080]">
       <div className="mx-auto w-full max-w-[1000px] px-4 pt-12 pb-10 md:px-12">
         <div className="mb-6 flex items-center gap-5">
-          <IconLink href={REPO_URL} label="Mã nguồn trên GitHub">
+          <IconLink href={REPO_URL} label={t.footer.sourceOnGitHub}>
             <GitHubIcon />
           </IconLink>
           <IconLink href="https://www.themoviedb.org/" label="The Movie Database (TMDB)">
@@ -30,15 +32,15 @@ export default function AppFooter() {
         </div>
 
         <ul className="grid grid-cols-2 gap-x-6 gap-y-3.5 sm:grid-cols-4">
-          {signedIn && <FooterLink to="/browse">Trang chủ</FooterLink>}
-          {signedIn && <FooterLink to="/account">Tài khoản</FooterLink>}
-          {signedIn && <FooterLink to="/profiles?manage">Quản lý hồ sơ</FooterLink>}
-          {signedIn && <FooterLink to="/profiles">Đổi hồ sơ</FooterLink>}
-          <FooterLink href={REPO_URL}>Mã nguồn dự án</FooterLink>
-          <FooterLink href="https://www.themoviedb.org/">Dữ liệu phim từ TMDB</FooterLink>
-          <FooterLink href="https://www.themoviedb.org/api-terms-of-use">Điều khoản TMDB API</FooterLink>
-          {import.meta.env.DEV && <FooterLink href="http://localhost:5080/swagger">Tài liệu API (Swagger)</FooterLink>}
-          {canAdmin && <FooterLink to="/admin">Trang quản trị</FooterLink>}
+          {signedIn && <FooterLink to="/browse">{t.common.home}</FooterLink>}
+          {signedIn && <FooterLink to="/account">{t.common.account}</FooterLink>}
+          {signedIn && <FooterLink to="/profiles?manage">{t.common.manageProfiles}</FooterLink>}
+          {signedIn && <FooterLink to="/profiles">{t.common.switchProfile}</FooterLink>}
+          <FooterLink href={REPO_URL}>{t.footer.projectSource}</FooterLink>
+          <FooterLink href="https://www.themoviedb.org/">{t.footer.tmdbData}</FooterLink>
+          <FooterLink href="https://www.themoviedb.org/api-terms-of-use">{t.footer.tmdbTerms}</FooterLink>
+          {import.meta.env.DEV && <FooterLink href="http://localhost:5080/swagger">{t.footer.apiDocs}</FooterLink>}
+          {canAdmin && <FooterLink to="/admin">{t.common.admin}</FooterLink>}
         </ul>
 
         <div className="mt-9 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -46,11 +48,11 @@ export default function AppFooter() {
             <TmdbBadge />
           </a>
           <p className="max-w-xl leading-relaxed">
-            Thông tin phim và hình ảnh lấy từ TMDB. Sản phẩm này sử dụng TMDB API nhưng không được TMDB xác nhận hay chứng nhận.
+            {t.footer.tmdbCredit}
           </p>
         </div>
 
-        <p className="mt-8 border-t border-white/10 pt-5 text-xs">© {YEAR} HakuTV · Dự án học tập cá nhân, phi thương mại.</p>
+        <p className="mt-8 border-t border-white/10 pt-5 text-xs">© {YEAR} HakuTV · {t.footer.copyright}</p>
       </div>
       <BackToTop />
     </footer>
@@ -60,6 +62,7 @@ export default function AppFooter() {
 /** Floating "back to top" button, bottom-right; appears after scrolling about one screen down. */
 function BackToTop() {
   const [visible, setVisible] = useState(false)
+  const t = useT()
 
   useEffect(() => {
     const onScroll = () => setVisible(window.scrollY > window.innerHeight * 0.8)
@@ -71,8 +74,8 @@ function BackToTop() {
   return (
     <button
       type="button"
-      aria-label="Lên đầu trang"
-      title="Lên đầu trang"
+      aria-label={t.footer.backToTop}
+      title={t.footer.backToTop}
       tabIndex={visible ? 0 : -1}
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       className={`fixed right-5 bottom-5 z-40 grid size-11 place-items-center rounded-full border border-white/20 bg-black/80 text-white shadow-lg shadow-black/60 backdrop-blur transition duration-300 hover:bg-brand hover:border-brand md:right-8 md:bottom-8 md:size-12 ${

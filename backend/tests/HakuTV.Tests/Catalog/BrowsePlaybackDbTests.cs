@@ -4,6 +4,7 @@ using System.Transactions;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using HakuTV.Core.Abstractions;
+using HakuTV.Core.Catalog;
 using HakuTV.Infrastructure.Catalog;
 using HakuTV.Infrastructure.Media;
 
@@ -20,8 +21,7 @@ namespace HakuTV.Tests.Catalog;
 [Collection(DatabaseCollection.Name)]
 public class BrowsePlaybackDbTests
 {
-    private const string ConnectionString =
-        @"Server=.\SQLEXPRESS;Database=HakuTV;Trusted_Connection=True;TrustServerCertificate=True";
+    private static string ConnectionString => TestDatabase.ConnectionString;
 
     private sealed class Factory : ISqlConnectionFactory
     {
@@ -105,21 +105,31 @@ public class BrowsePlaybackDbTests
         Assert.Equal("/test-logo.png", first.LogoPath);
         Assert.Equal("Hành Động", first.Genres);                    // "Phim " prefix stripped
 
-        // De-duplication: already in the Top 10, so it is not among the first cards of "Popular movies".
+        // De-duplication: "Popular movies" is filled after the rows above it, so the Top 10 movie (and anything else
+        // already shown) comes after every title not shown yet. Checked as an ordering rule, not "not in the first 5",
+        // so it holds on a nearly empty catalog too (CI), where the row is topped up with repeats instead of left short.
         var popularMovies = feed.Rows.Single(r => r.Key == "popular-movies");
-        Assert.DoesNotContain(movieId, popularMovies.Items.Take(5).Select(c => c.TitleId));
+        AssertRepeatsComeLast(feed, popularMovies, "top10-series", "popular-series", "top10-movies", "new-releases", "top-rated");
         Assert.Equal("poster", feed.Rows.Single(r => r.Key == "top-rated").Layout);
 
         var topSeries = feed.Rows.Single(r => r.Key == "top10-series").Items[0];
         Assert.Equal(seriesId, topSeries.TitleId);
         Assert.Equal("Test series", topSeries.Name);                                   // vi missing -> en
-        Assert.DoesNotContain(seriesId, feed.Rows.Single(r => r.Key == "popular-series").Items.Take(5).Select(c => c.TitleId));
+        AssertRepeatsComeLast(feed, feed.Rows.Single(r => r.Key == "popular-series"), "top10-series");
         Assert.Equal("popular-series", feed.Rows[0].Key);                              // shown first although filled after the Top 10
         Assert.NotNull(feed.Hero);
 
         var kids = await queries.GetHomeAsync("en", maxMaturityAge: 12);
         Assert.DoesNotContain(kids.Rows.SelectMany(r => r.Items), c => c.TitleId == movieId);
         Assert.All(kids.Rows.SelectMany(r => r.Items), c => Assert.True(c.MaturityAge is not null and <= 12));
+    }
+
+    /// <summary>In <paramref name="row"/>, titles already shown in the rows filled before it all come after the new ones.</summary>
+    private static void AssertRepeatsComeLast(HomeFeed feed, BrowseRow row, params string[] filledBefore)
+    {
+        var shown = feed.Rows.Where(r => filledBefore.Contains(r.Key)).SelectMany(r => r.Items).Select(c => c.TitleId).ToHashSet();
+        var isRepeat = row.Items.Select(c => shown.Contains(c.TitleId)).ToList();
+        Assert.Equal(isRepeat.OrderBy(repeat => repeat), isRepeat);   // false…false, true…true
     }
 
     [Fact]

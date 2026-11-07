@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BrowseRow } from '../features/browse/browseApi'
+import { useT } from '../i18n'
 import { BackdropCard, PosterCard, RankCard } from './browse/cards'
 import { ChevronIcon } from './icons'
 
@@ -7,6 +8,7 @@ import { ChevronIcon } from './icons'
 // one screen and a small page indicator. The left arrow only appears once the row has been scrolled.
 export default function TitleRow({ row }: { row: BrowseRow }) {
   const scroller = useRef<HTMLDivElement>(null)
+  const t = useT()
   const [pages, setPages] = useState({ count: 1, current: 0, atStart: true, atEnd: true })
 
   const measure = useCallback(() => {
@@ -49,7 +51,7 @@ export default function TitleRow({ row }: { row: BrowseRow }) {
 
       <div className="relative">
         {!pages.atStart && (
-          <button type="button" aria-label="Cuộn trái" onClick={() => page(-1)} className={`${arrow} left-0 rounded-r`}>
+          <button type="button" aria-label={t.browse.scrollLeft} onClick={() => page(-1)} className={`${arrow} left-0 rounded-r`}>
             <ChevronIcon direction="left" />
           </button>
         )}
@@ -71,7 +73,7 @@ export default function TitleRow({ row }: { row: BrowseRow }) {
           )}
         </div>
         {!pages.atEnd && (
-          <button type="button" aria-label="Cuộn phải" onClick={() => page(1)} className={`${arrow} right-0 rounded-l`}>
+          <button type="button" aria-label={t.browse.scrollRight} onClick={() => page(1)} className={`${arrow} right-0 rounded-l`}>
             <ChevronIcon direction="right" />
           </button>
         )}

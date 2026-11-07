@@ -57,7 +57,10 @@ public sealed class AccountController(
             if (accountId is not null)
             {
                 var link = $"{FrontendUrl}/reset-password?token={Uri.EscapeDataString(token)}";
-                await mail.SendAsync(email, "Đặt lại mật khẩu HakuTV", ResetEmail(link), ct);
+                // The email follows the language of the page that asked for it (the UI language of the login page).
+                var english = request.Language == "en";
+                await mail.SendAsync(email, english ? "Reset your HakuTV password" : "Đặt lại mật khẩu HakuTV",
+                    english ? ResetEmailEn(link) : ResetEmail(link), ct);
             }
         }
 
@@ -152,20 +155,32 @@ public sealed class AccountController(
         </div>
         """;
 
-    /// <summary>"Chrome · Windows" from a user agent string: enough to recognise a device, no parsing library.</summary>
+    private static string ResetEmailEn(string link) => $"""
+        <div style="max-width:480px;margin:auto;background:#fff;border-radius:8px;padding:32px">
+          <h1 style="color:#e50914;font-size:28px;margin:0 0 16px">HAKUTV</h1>
+          <p>You (or someone else) asked to reset the password of this HakuTV account.</p>
+          <p><a href="{WebUtility.HtmlEncode(link)}" style="display:inline-block;background:#e50914;color:#fff;padding:12px 20px;border-radius:4px;text-decoration:none;font-weight:bold">Reset password</a></p>
+          <p style="color:#666;font-size:13px">The link is valid for 30 minutes and works only once. If you did not ask for it, ignore this email: your password stays the same.</p>
+        </div>
+        """;
+
+    /// <summary>
+    /// "Chrome · Windows" from a user agent string: enough to recognise a device, no parsing library. Product names
+    /// only, so it reads the same in every UI language; "" when nothing is recognised (the client shows its own label).
+    /// </summary>
     private static string DeviceName(string? ua)
     {
-        if (string.IsNullOrEmpty(ua)) return "Thiết bị không rõ";
+        if (string.IsNullOrEmpty(ua)) return "";
         var browser = ua.Contains("Edg/") ? "Edge" : ua.Contains("OPR/") ? "Opera" : ua.Contains("Firefox/") ? "Firefox"
-            : ua.Contains("Chrome/") ? "Chrome" : ua.Contains("Safari/") ? "Safari" : ua.StartsWith("node") ? "Script" : "Trình duyệt";
+            : ua.Contains("Chrome/") ? "Chrome" : ua.Contains("Safari/") ? "Safari" : ua.StartsWith("node") ? "Script" : null;
         var os = ua.Contains("Windows") ? "Windows" : ua.Contains("Android") ? "Android" : ua.Contains("iPhone") || ua.Contains("iPad") ? "iOS"
             : ua.Contains("Mac OS") ? "macOS" : ua.Contains("Linux") ? "Linux" : null;
-        return os is null ? browser : $"{browser} · {os}";
+        return string.Join(" · ", new[] { browser, os }.Where(part => part is not null));
     }
 }
 
 public sealed record AccountDto(string Email, DateTime CreatedAt, DateTime? LastLoginAt, bool IsAdmin);
-public sealed record ForgotPasswordRequest(string? Email);
+public sealed record ForgotPasswordRequest(string? Email, string? Language);
 public sealed record ResetPasswordRequest(string? Token, string? Password);
 public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
 public sealed record SessionDto(Guid FamilyId, DateTime StartedAt, DateTime LastSeenAt, string Device, bool IsCurrent);

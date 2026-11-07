@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import type { TitleCard } from '../../features/browse/browseApi'
 import { formatMaturity, formatRuntime, formatVote, placeholderStyle } from '../../features/browse/format'
+import { useT } from '../../i18n'
 import { tmdbImage } from '../../services/tmdbImage'
 import { ChevronDownIcon, PlayIcon, PlusIcon, ThumbUpIcon } from '../icons'
 import { PreviewContext, type PreviewApi } from './previewContext'
@@ -68,6 +69,7 @@ export function HoverPreviewProvider({ children }: { children: ReactNode }) {
 
 function PreviewCard({ card, rect, onClose }: OpenPreview & { onClose: () => void }) {
   const navigate = useNavigate()
+  const t = useT()
   const play = () => navigate(`/watch/${card.titleId}`)
 
   // ~1.5x a standard card, centred on the hovered card, kept inside the viewport (first/last card of a row
@@ -83,8 +85,8 @@ function PreviewCard({ card, rect, onClose }: OpenPreview & { onClose: () => voi
   const backdrop = tmdbImage(card.backdropPath, 'w780')
   const logo = tmdbImage(card.logoPath, 'w300')
   const vote = formatVote(card.voteAverage)
-  const age = formatMaturity(card.maturityAge)
-  const runtime = card.titleType === 1 ? formatRuntime(card.runtimeMinutes) : 'Series'
+  const age = formatMaturity(card.maturityAge, t)
+  const runtime = card.titleType === 1 ? formatRuntime(card.runtimeMinutes, t) : t.title.series
 
   return (
     <div
@@ -94,7 +96,7 @@ function PreviewCard({ card, rect, onClose }: OpenPreview & { onClose: () => voi
       className="preview-in absolute z-40 overflow-hidden rounded-md bg-surface-raised shadow-2xl shadow-black/80"
       style={{ left: left + window.scrollX, top, width, transformOrigin: `${origin} center` }}
     >
-      <button type="button" onClick={play} aria-label={`Phát ${card.name}`} className="relative block aspect-video w-full">
+      <button type="button" onClick={play} aria-label={t.title.playName(card.name)} className="relative block aspect-video w-full">
         {backdrop ? (
           <img src={backdrop} alt="" className="size-full object-cover" />
         ) : (
@@ -110,16 +112,16 @@ function PreviewCard({ card, rect, onClose }: OpenPreview & { onClose: () => voi
 
       <div className="space-y-3 px-4 pt-2 pb-4">
         <div className="flex items-center gap-2">
-          <RoundButton label="Phát" primary onClick={play}>
+          <RoundButton label={t.title.play} primary onClick={play}>
             <PlayIcon className="size-5" />
           </RoundButton>
-          <RoundButton label="Thêm vào Danh sách của tôi (Giai đoạn 4)">
+          <RoundButton label={t.title.addToList}>
             <PlusIcon />
           </RoundButton>
-          <RoundButton label="Đánh giá (Giai đoạn 4)">
+          <RoundButton label={t.title.rate}>
             <ThumbUpIcon />
           </RoundButton>
-          <RoundButton label="Thông tin khác (Giai đoạn 5)" className="ml-auto">
+          <RoundButton label={t.title.moreInfoPhase} className="ml-auto">
             <ChevronDownIcon />
           </RoundButton>
         </div>

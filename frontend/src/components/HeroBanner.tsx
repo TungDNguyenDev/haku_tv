@@ -1,12 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 import type { HeroTitle } from '../features/browse/browseApi'
 import { placeholderStyle } from '../features/browse/format'
+import { useT } from '../i18n'
 import { tmdbImage } from '../services/tmdbImage'
 import { InfoIcon, PlayIcon } from './icons'
 import TitleMeta from './TitleMeta'
 
 export default function HeroBanner({ hero }: { hero: HeroTitle }) {
   const navigate = useNavigate()
+  const t = useT()
   const backdrop = tmdbImage(hero.backdropPath, 'original')
   const logo = tmdbImage(hero.logoPath, 'w500')
 
@@ -36,15 +38,15 @@ export default function HeroBanner({ hero }: { hero: HeroTitle }) {
             onClick={() => navigate(`/watch/${hero.titleId}`)}
             className="flex items-center gap-2 rounded bg-white px-5 py-2 font-semibold text-black hover:bg-white/75 md:px-7 md:text-lg"
           >
-            <PlayIcon className="size-5 md:size-7" /> Phát
+            <PlayIcon className="size-5 md:size-7" /> {t.title.play}
           </button>
           <button
             type="button"
             disabled
-            title="Trang chi tiết có ở Giai đoạn 5"
+            title={t.title.moreInfoLater}
             className="flex cursor-not-allowed items-center gap-2 rounded bg-gray-500/60 px-5 py-2 font-semibold md:px-7 md:text-lg"
           >
-            <InfoIcon className="size-5 md:size-7" /> Thông tin khác
+            <InfoIcon className="size-5 md:size-7" /> {t.title.moreInfo}
           </button>
         </div>
       </div>
